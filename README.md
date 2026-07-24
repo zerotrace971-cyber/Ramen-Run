@@ -22,6 +22,10 @@ Freighter wallet → Ramen Vault → Stamp Shelf
 
 GDBGZXECSRHPO4EVUPWYKBPOTYOMTULD2VYG7ESFIBWIVXRFLRWASD7S
 
+## Live Website Link
+
+https://ramen-run.vercel.app
+
 ## Screenshots
 
 <img width="1000" height="450" alt="Screenshot 2026-07-25 020259" src="https://github.com/user-attachments/assets/0ced7097-4067-4852-aaa6-94e478dc6f7e" />
@@ -39,6 +43,9 @@ GDBGZXECSRHPO4EVUPWYKBPOTYOMTULD2VYG7ESFIBWIVXRFLRWASD7S
 <img width="360" height="800" alt="WhatsApp Image 2026-07-25 at 2 23 30 AM (2)" src="https://github.com/user-attachments/assets/fd14cb7a-3333-40c1-a42a-f59de7a4d450" />
 <img width="360" height="800" alt="WhatsApp Image 2026-07-25 at 2 23 30 AM (1)" src="https://github.com/user-attachments/assets/b3bb6422-fae3-4364-b6a4-703b27b12830" />
 
+## Demo Video Link
+
+https://drive.google.com/file/d/1g5c6llwaG9J6xqqPYUZ3q_EuiKacKjKS/view?usp=sharing
 
 ## Feature tour
 
