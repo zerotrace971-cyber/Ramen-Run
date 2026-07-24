@@ -18,6 +18,9 @@ Freighter wallet → Ramen Vault → Stamp Shelf
 - **Stamp Shelf** is a separate contract that only accepts a delegated authorization from the configured Vault. A completed route triggers a cross-contract call that mints an owner/route/rarity/serial achievement record.
 - **Live Dispatch** consumes an SSE feed. It has a polished simulated live feed in demo mode, then switches to a real relay through `VITE_EVENT_STREAM_URL` after deployment.
 - **Suzume** is a Gemini-ready assistant. Its API key is only read by `api/suzume.mjs`; without a key, the UI keeps working through an intentionally helpful local concierge fallback.
+## Contract Address
+
+GDBGZXECSRHPO4EVUPWYKBPOTYOMTULD2VYG7ESFIBWIVXRFLRWASD7S
 
 ## Feature tour
 
