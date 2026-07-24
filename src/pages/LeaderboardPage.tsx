@@ -1,0 +1,5 @@
+import { Crown, Medal, Sparkles } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { useGameProgress } from '../game/progress';
+const rivals = [['Mika', '3,420', '🛼'], ['Suzume', '2,940', '🛵'], ['Yori', '2,410', '🐈‍⬛'], ['P.E.E.P.', '1,880', '🕊️']];
+export function LeaderboardPage() { const { progress } = useGameProgress(); return <div className="leaderboard-page"><header><p>NOODLE NOVA LEAGUE</p><h1>Courier board</h1><span>Your personal high score is {progress.highScore || 'waiting for a run'}.</span></header><section>{rivals.map(([name, score, emoji], index) => <article key={name} className={name === 'Suzume' ? 'you' : ''}><span className="rank">{index === 0 ? <Crown size={20} /> : `0${index + 1}`}</span><span className="rank-avatar">{emoji}</span><b>{name}</b><span className="score">{name === 'Suzume' && progress.highScore ? progress.highScore : score} <small>stardust</small></span>{index === 0 && <Medal size={19} />}</article>)}</section><Link to="/game/map"><Sparkles size={16} /> Start climbing</Link></div>; }
