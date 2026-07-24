@@ -14,7 +14,8 @@
     "contracts:build": "cargo build --release --target wasm32v1-none",
     "deploy:testnet": "pwsh ./scripts/deploy-testnet.ps1",
     "relay": "node scripts/event-relay.mjs",
-    "check": "npm run lint && npm run test && npm run build"
+    "check": "npm run lint && npm run test && npm run build",
+    "ci:local": "node ./scripts/ci-local.mjs"
   },
   "dependencies": {
     "@stellar/freighter-api": "^4.1.0",
