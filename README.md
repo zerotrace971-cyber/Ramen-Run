@@ -22,6 +22,24 @@ Freighter wallet → Ramen Vault → Stamp Shelf
 
 GDBGZXECSRHPO4EVUPWYKBPOTYOMTULD2VYG7ESFIBWIVXRFLRWASD7S
 
+## Screenshots
+
+<img width="1000" height="450" alt="Screenshot 2026-07-25 020259" src="https://github.com/user-attachments/assets/0ced7097-4067-4852-aaa6-94e478dc6f7e" />
+<img width="1000" height="450" alt="Screenshot 2026-07-25 020230" src="https://github.com/user-attachments/assets/26d99c63-e4cd-4e7f-a9c7-48f3b8d8620f" />
+<img width="1000" height="450" alt="Screenshot 2026-07-25 020427" src="https://github.com/user-attachments/assets/8a3f37f2-0149-40df-9fe6-b77752a4a4c5" />
+<img width="1000" height="450" alt="Screenshot 2026-07-25 020359" src="https://github.com/user-attachments/assets/7d35c159-10f6-4413-8935-b7cd6764e247" />
+<img width="1000" height="450" alt="Screenshot 2026-07-25 020334" src="https://github.com/user-attachments/assets/a3f325f1-0ec8-4377-996f-fe89a24e151d" />
+<img width="1000" height="450" alt="Screenshot 2026-07-25 020320" src="https://github.com/user-attachments/assets/891df8a3-aa32-43ed-a00b-28be35b5fd4f" />
+
+
+## Mobile Responsive UI
+
+<img width="360" height="800" alt="WhatsApp Image 2026-07-25 at 2 23 31 AM" src="https://github.com/user-attachments/assets/79ca74df-0be8-4c86-ac00-a9667b6f8562" />
+<img width="360" height="800" alt="WhatsApp Image 2026-07-25 at 2 23 30 AM" src="https://github.com/user-attachments/assets/abe357fc-58b1-4a11-91a2-4dde0eb51233" />
+<img width="360" height="800" alt="WhatsApp Image 2026-07-25 at 2 23 30 AM (2)" src="https://github.com/user-attachments/assets/fd14cb7a-3333-40c1-a42a-f59de7a4d450" />
+<img width="360" height="800" alt="WhatsApp Image 2026-07-25 at 2 23 30 AM (1)" src="https://github.com/user-attachments/assets/b3bb6422-fae3-4364-b6a4-703b27b12830" />
+
+
 ## Feature tour
 
 - A dedicated **Manga Archive** with six chapters and twelve illustrated pages, static cast compositions, chapter navigation, and opt-in Web Audio ambience for rain, kitchens, trains, lanterns, and the shrine finale.
