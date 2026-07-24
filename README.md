@@ -183,6 +183,9 @@ This repo is ready for Vercel:
 
 ## CI/CD
 
+<img width="900" height="450" alt="image" src="https://github.com/user-attachments/assets/97e2a862-2e20-4e7c-9b56-ca2b0b9abe59" />
+
+
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pull requests and pushes to `main`:
 
 1. Install locked Node dependencies.
