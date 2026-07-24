@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.local
+target/
+**/*.tsbuildinfo
+contracts/**/target/
+contracts/**/test_snapshots/
+*.wasm
