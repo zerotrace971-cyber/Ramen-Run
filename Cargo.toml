@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = [
+  "contracts/ramen-vault",
+  "contracts/stamp-shelf",
+]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/your-handle/suzumes-stellar-ramen-run"
+
+[workspace.dependencies]
+soroban-sdk = "27.0.1"
