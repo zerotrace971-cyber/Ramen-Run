@@ -1,0 +1,11 @@
+import { ArrowRight, Boxes, Code2, DatabaseZap, ShieldCheck, Sparkles } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { config, isDemoMode } from '../lib/config';
+
+export function HowItWorksPage() {
+  return <><section className="page-title"><div><p>THE TECHNICAL MENU</p><h1>How it works <span>🧠</span></h1><small>A production-minded example of Soroban orchestration, streamed updates, and safe client signing.</small></div></section>
+    <section className="architecture"><div className="arch-card"><span><Boxes size={21} /></span><p>01 / VAULT</p><h2>Ramen Vault</h2><small>Holds sponsored XLM, records each route, validates the state machine, and emits route events.</small></div><ArrowRight className="arch-arrow" /><div className="arch-card hot"><span><Sparkles size={21} /></span><p>02 / CROSS-CONTRACT CALL</p><h2>Stamp Shelf</h2><small>Only the configured Vault can mint a stamp. It records owner, route, serial and rarity.</small></div><ArrowRight className="arch-arrow" /><div className="arch-card"><span><DatabaseZap size={21} /></span><p>03 / STREAM</p><h2>Dispatch relay</h2><small>An optional SSE relay indexes emitted contract events for the live dashboard.</small></div></section>
+    <section className="how-grid"><article className="panel"><Code2 size={22} /><h2>Transaction lifecycle</h2><ol><li>Freighter provides the public address.</li><li>The app builds and simulates <code>fund_route</code>.</li><li>Freighter signs only the prepared XDR.</li><li>Soroban submits, emits, and completes the route.</li></ol></article><article className="panel"><ShieldCheck size={22} /><h2>Safety checklist</h2><ul><li>No private keys in browser storage</li><li>Input guards in both contracts</li><li>Role-gated mint authority</li><li>Explicit error and pending states</li></ul></article></section>
+    <section className="configuration-box"><div><p>DEPLOYMENT STATUS</p><h2>{isDemoMode ? 'Awaiting contract IDs' : 'Testnet contracts wired'}</h2><small>Vault: {config.vaultContract || 'not configured'}<br />Stamp Shelf: {config.stampContract || 'not configured'}</small></div><Link to="/missions" className="button primary">Open route board <ArrowRight size={17} /></Link></section>
+  </>;
+}
