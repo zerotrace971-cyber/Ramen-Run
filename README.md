@@ -89,6 +89,15 @@ Copy `.env.example` to `.env`. Never expose Gemini credentials in a variable beg
 | `VITE_QUEST_REWARD_API` | Quest bounty endpoint | `/api/claim-quest` |
 | `GEMINI_API_KEY` | Vercel server-side Suzume bot | set in Vercel only |
 | `QUEST_REWARD_SECRET` | Testnet-only treasury secret for quest payouts | set in Vercel only |
+| `ADMIN_DASHBOARD_TOKEN` | Protects the private `/admin` observatory | set in Vercel only |
+| `UPSTASH_REDIS_REST_URL` | Persistent Testnet telemetry storage | set in Vercel only |
+| `UPSTASH_REDIS_REST_TOKEN` | Authorizes the telemetry store | set in Vercel only |
+
+## Private admin observatory
+
+Visit `/admin` directly to open Suzume's private mission-control dashboard. It shows unique verified wallets, Testnet check-ins, and the latest transaction receipts with Stellar Expert links. The page is not part of the public navigation and is protected by `ADMIN_DASHBOARD_TOKEN`; the value is entered manually and held only in browser-session storage.
+
+Set up a free Upstash Redis REST database, then add `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, and a strong `ADMIN_DASHBOARD_TOKEN` to Vercel. Every client telemetry submission is checked against Stellar Testnet Horizon before it is persisted. If the variables are absent, gameplay still works normally and telemetry safely remains disabled.
 
 ## Test and build
 
@@ -186,12 +195,14 @@ This repo is ready for Vercel:
 <img width="900" height="450" alt="image" src="https://github.com/user-attachments/assets/97e2a862-2e20-4e7c-9b56-ca2b0b9abe59" />
 
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on pull requests and pushes to `main`:
+[`CI and Vercel CD`](.github/workflows/ci-cd.yml) runs on pull requests and pushes to `main` / `master`:
 
-1. Install locked Node dependencies.
-2. Lint, test and build the frontend.
-3. Test both contracts.
-4. Compile deployable WASM binaries.
+1. Lints, tests, and builds the React frontend.
+2. Parses every Vercel API function and the event relay as a separate backend gate.
+3. Tests both Soroban contracts and builds deployable WASM binaries.
+4. On a verified push to `main` or `master`, builds the production artifact with Vercel and deploys it to production.
+
+Add `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` as GitHub secrets before enabling the deployment job. See [SETUP.md](SETUP.md) for the exact setup; runtime application secrets remain in Vercel, never GitHub Actions logs.
 
 ## Demo flow (90 seconds)
 
@@ -211,7 +222,7 @@ api/suzume.mjs               Protected Gemini bridge for Vercel
 api/claim-quest.mjs          Testnet-only side-quest XLM treasury function
 scripts/deploy-testnet.ps1   Soroban compile/deploy/initialize workflow
 scripts/event-relay.mjs      Soroban RPC → Server-Sent Events adapter
-.github/workflows/ci.yml     Frontend and contract quality gates
+.github/workflows/ci-cd.yml  Frontend, backend, Soroban, and Vercel CD pipeline
 ```
 
 ## License

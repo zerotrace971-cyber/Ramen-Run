@@ -2,6 +2,7 @@ import { signTransaction } from '@stellar/freighter-api';
 import { Address, Asset, Contract, Horizon, Keypair, Memo, Networks, Operation, TransactionBuilder, nativeToScVal, rpc } from '@stellar/stellar-sdk';
 import { config, isDemoMode } from './config';
 import { getJetpackPowerup, type JetpackPowerupId } from '../game/jetpack/powerups';
+import { recordTelemetry } from './telemetry';
 
 const sleep = (milliseconds: number) => new Promise(resolve => window.setTimeout(resolve, milliseconds));
 const networkPassphrase = config.network === 'PUBLIC' ? Networks.PUBLIC : Networks.TESTNET;
@@ -34,7 +35,9 @@ async function submitTestnetReceipt(address: string, memo: string): Promise<stri
 /** Opens Freighter a second time to sign a real, tiny Testnet check-in transaction. */
 export async function createWalletHandshake(address: string): Promise<string> {
   try {
-    return await submitTestnetReceipt(address, 'SUZUME-CHECKIN');
+    const hash = await submitTestnetReceipt(address, 'SUZUME-CHECKIN');
+    recordTelemetry({ kind: 'wallet_login', wallet: address, hash, label: 'Freighter Testnet check-in' });
+    return hash;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Testnet check-in failed.';
     if (/not found|does not exist|account/i.test(message)) {
@@ -50,7 +53,9 @@ export async function createWalletHandshake(address: string): Promise<string> {
  */
 export async function claimJetpackCompletionReceipt(address: string): Promise<string> {
   try {
-    return await submitTestnetReceipt(address, 'JETPACK-ROUTE-07');
+    const hash = await submitTestnetReceipt(address, 'JETPACK-ROUTE-07');
+    recordTelemetry({ kind: 'jetpack_receipt', wallet: address, hash, label: 'Route 07 completion receipt' });
+    return hash;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Could not create the Jetpack Testnet receipt.';
     if (/not found|does not exist|account/i.test(message)) {
@@ -82,6 +87,7 @@ export async function purchaseJetpackPowerup(address: string, item: JetpackPower
     const signed = await signTransaction(transaction.toXDR(), { networkPassphrase: Networks.TESTNET });
     if (signed.error || !signed.signedTxXdr) throw new Error(signed.error ?? 'Freighter did not sign the shop purchase.');
     const submitted = await testnetHorizon.submitTransaction(TransactionBuilder.fromXDR(signed.signedTxXdr, Networks.TESTNET));
+    recordTelemetry({ kind: 'jetpack_shop', wallet: address, hash: submitted.hash, label: powerup.name, amount: `${powerup.price} XLM` });
     return { hash: submitted.hash, amount: `${powerup.price} XLM`, item };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'The Testnet shop transaction could not be completed.';
@@ -101,6 +107,7 @@ export async function claimJetpackDeliveryReward(address: string, run: { score: 
   if (!response.ok || typeof body.hash !== 'string' || typeof body.amount !== 'string') {
     throw new Error(typeof body.error === 'string' ? body.error : 'The Jetpack Testnet treasury is not configured yet.');
   }
+  recordTelemetry({ kind: 'jetpack_reward', wallet: address, hash: body.hash, label: 'Route 07 delivery bounty', amount: body.amount });
   return { hash: body.hash, amount: body.amount, message: 'Testnet XLM delivered from Suzume’s reward treasury.' };
 }
 
@@ -113,12 +120,14 @@ export async function claimQuestReward(address: string, questId: string): Promis
     const response = await fetch(config.questRewardApi, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ address, questId }) });
     const body = await response.json().catch(() => ({}));
     if (response.ok && typeof body.hash === 'string' && typeof body.amount === 'string') {
+      recordTelemetry({ kind: 'quest_reward', wallet: address, hash: body.hash, label: `${questId} quest bounty`, amount: body.amount });
       return { hash: body.hash, amount: body.amount, paid: true, message: 'Testnet XLM bounty sent from the Suzume treasury.' };
     }
     throw new Error(typeof body.error === 'string' ? body.error : 'The quest treasury is not configured.');
   } catch (error) {
     const hash = await submitTestnetReceipt(address, `QUEST-${questId.toUpperCase()}`);
     const message = error instanceof Error ? error.message : 'Treasury unavailable.';
+    recordTelemetry({ kind: 'quest_receipt', wallet: address, hash, label: `${questId} quest receipt`, amount: '0 XLM' });
     return { hash, amount: '0 XLM', paid: false, message: `${message} Your signed Testnet completion receipt was still recorded.` };
   }
 }
@@ -148,5 +157,6 @@ export async function fundRoute(address: string, routeId: number, amount: number
   if (signed.error || !signed.signedTxXdr) throw new Error(signed.error ?? 'Freighter did not sign the transaction.');
   const submitted = await server.sendTransaction(TransactionBuilder.fromXDR(signed.signedTxXdr, networkPassphrase));
   if (submitted.status === 'ERROR') throw new Error('Soroban rejected the transaction. Check the route and XLM amount.');
+  recordTelemetry({ kind: 'route_funded', wallet: address, hash: submitted.hash, label: `Route ${routeId} funded`, amount: `${amount} XLM` });
   return { hash: submitted.hash, demo: false };
 }

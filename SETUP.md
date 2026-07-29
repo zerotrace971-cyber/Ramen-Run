@@ -1,112 +1,35 @@
-name: Deploy Stellar Contracts and Refresh Vercel
+# GitHub Actions and Vercel setup
 
-on:
-  workflow_dispatch:
+This project deploys through GitHub Actions. Pull requests only run quality gates; a push to `main` or `master` deploys to Vercel after every gate passes.
 
-permissions:
-  contents: read
+## Required GitHub secrets
 
-concurrency:
-  group: ramen-run-stellar-testnet
-  cancel-in-progress: false
+Add these repository or `production` environment secrets before the first production deployment:
 
-jobs:
-  deploy-testnet:
-    name: Deploy contracts to Stellar Testnet
-    runs-on: ubuntu-latest
-    environment: stellar-testnet
-    env:
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+| Secret | Purpose |
+| --- | --- |
+| `VERCEL_TOKEN` | Vercel personal/team access token used by the deployment job |
+| `VERCEL_ORG_ID` | Vercel team or personal account ID |
+| `VERCEL_PROJECT_ID` | Vercel project ID for this dApp |
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+Get the project identifiers from `.vercel/project.json` after linking the project with the Vercel CLI, or from Vercel project settings. Keep application runtime values—such as `GEMINI_API_KEY`, treasury secrets, and `VITE_*` configuration—in Vercel's Environment Variables, not in GitHub Actions.
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32v1-none
+## Workflow behavior
 
-      - name: Cache Rust build files
-        uses: Swatinem/rust-cache@v2
+- Pull requests to `main` / `master`: frontend lint, tests and build; serverless backend syntax validation; Soroban tests and WASM build.
+- Pushes to `main` / `master`: the same gates, then a Vercel production build and deployment.
+- Manual runs: quality gates only, so an accidental manual run cannot deploy a different branch to production.
 
-      - name: Test contracts before deployment
-        run: cargo test --workspace
+The workflow lives at `.github/workflows/ci-cd.yml`.
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
+## Private admin observatory
 
-      - name: Install frontend dependencies
-        run: npm ci
+The `/admin` route is a private Testnet activity dashboard. Before deploying it, create an Upstash Redis REST database and add these Vercel Environment Variables:
 
-      - name: Install Stellar CLI
-        shell: bash
-        run: |
-          curl -fsSL https://github.com/stellar/stellar-cli/raw/main/install.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+| Variable | Purpose |
+| --- | --- |
+| `ADMIN_DASHBOARD_TOKEN` | A long, private token required to open `/admin` |
+| `UPSTASH_REDIS_REST_URL` | Upstash database REST endpoint |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash database REST token |
 
-      - name: Verify Stellar CLI
-        run: stellar --version
-
-      - name: Derive Testnet deployer address
-        shell: bash
-        env:
-          STELLAR_TESTNET_SECRET_KEY: ${{ secrets.STELLAR_TESTNET_SECRET_KEY }}
-        run: |
-          test -n "$STELLAR_TESTNET_SECRET_KEY"
-          admin_address=$(node --input-type=module -e "import { Keypair } from '@stellar/stellar-sdk'; console.log(Keypair.fromSecret(process.env.STELLAR_TESTNET_SECRET_KEY).publicKey())")
-          echo "STELLAR_DEPLOY_ADMIN=$admin_address" >> "$GITHUB_ENV"
-
-      - name: Deploy and initialize contracts
-        id: contracts
-        shell: pwsh
-        env:
-          STELLAR_DEPLOY_SOURCE: ${{ secrets.STELLAR_TESTNET_SECRET_KEY }}
-        run: ./scripts/deploy-testnet.ps1
-
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
-
-      - name: Update production contract IDs in Vercel
-        shell: bash
-        env:
-          RAMEN_VAULT_ID: ${{ steps.contracts.outputs.ramen_vault_id }}
-          STAMP_SHELF_ID: ${{ steps.contracts.outputs.stamp_shelf_id }}
-        run: |
-          vercel env rm VITE_RAMEN_VAULT_CONTRACT_ID production --yes --token="${{ secrets.VERCEL_TOKEN }}" || true
-          printf '%s\n' "$RAMEN_VAULT_ID" | vercel env add VITE_RAMEN_VAULT_CONTRACT_ID production --token="${{ secrets.VERCEL_TOKEN }}"
-
-          vercel env rm VITE_STAMP_NFT_CONTRACT_ID production --yes --token="${{ secrets.VERCEL_TOKEN }}" || true
-          printf '%s\n' "$STAMP_SHELF_ID" | vercel env add VITE_STAMP_NFT_CONTRACT_ID production --token="${{ secrets.VERCEL_TOKEN }}"
-
-      - name: Pull updated Vercel production configuration
-        run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
-
-      - name: Build with the new contract IDs
-        run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
-
-      - name: Deploy refreshed production app
-        id: deploy
-        shell: bash
-        run: |
-          deployment_url=$(vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}")
-          echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
-
-      - name: Write deployment summary
-        shell: bash
-        env:
-          RAMEN_VAULT_ID: ${{ steps.contracts.outputs.ramen_vault_id }}
-          STAMP_SHELF_ID: ${{ steps.contracts.outputs.stamp_shelf_id }}
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
-        run: |
-          {
-            echo "## Ramen Run deployment"
-            echo
-            echo "- Ramen Vault: \`$RAMEN_VAULT_ID\`"
-            echo "- Stamp Shelf: \`$STAMP_SHELF_ID\`"
-            echo "- Vercel: $DEPLOYMENT_URL"
-          } >> "$GITHUB_STEP_SUMMARY"
+The public client never receives these values. It submits only transaction metadata after wallet actions; `/api/telemetry` independently checks each receipt against Stellar Testnet Horizon before it writes to Redis. Leave the variables unset during local UI work if desired: the game continues to work and the observatory clearly reports that storage has not been configured.

@@ -1,0 +1,136 @@
+name: CI and Vercel CD
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ramen-run-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend — lint, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Lint React frontend
+        run: npm run lint
+
+      - name: Run frontend tests
+        run: npm run test
+
+      - name: Build production frontend
+        run: npm run build
+
+  backend:
+    name: Backend — validate Vercel functions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Parse Vercel API and relay modules
+        run: npm run backend:check
+
+  contracts:
+    name: Soroban contracts — test and WASM build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust and WASM target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: wasm32v1-none
+
+      - name: Cache Cargo artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run contract tests
+        run: npm run contracts:test
+
+      - name: Build deployable contract WASM
+        run: npm run contracts:build
+
+  deploy-vercel:
+    name: Deploy verified production build to Vercel
+    needs: [frontend, backend, contracts]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull production configuration from Vercel
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build the Vercel production artifact
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy the verified artifact
+        id: deploy
+        shell: bash
+        run: |
+          deployment_url="$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")"
+          echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
+
+      - name: Write deployment summary
+        shell: bash
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          {
+            echo "## Vercel production deployment"
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- URL: ${DEPLOYMENT_URL}"
+            echo "- Frontend, backend, and Soroban contract quality gates passed first."
+          } >> "$GITHUB_STEP_SUMMARY"

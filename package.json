@@ -12,10 +12,10 @@
     "test:watch": "vitest",
     "contracts:test": "cargo test --workspace",
     "contracts:build": "cargo build --release --target wasm32v1-none",
+    "backend:check": "node --check api/suzume.mjs && node --check api/claim-quest.mjs && node --check api/claim-jetpack-reward.mjs && node --check api/telemetry.mjs && node --check scripts/event-relay.mjs",
     "deploy:testnet": "pwsh ./scripts/deploy-testnet.ps1",
     "relay": "node scripts/event-relay.mjs",
-    "check": "npm run lint && npm run test && npm run build",
-    "ci:local": "node ./scripts/ci-local.mjs"
+    "check": "npm run lint && npm run backend:check && npm run test && npm run build"
   },
   "dependencies": {
     "@stellar/freighter-api": "^4.1.0",
