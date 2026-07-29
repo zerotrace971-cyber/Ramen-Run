@@ -6,6 +6,8 @@ export const config = {
   eventStreamUrl: import.meta.env.VITE_EVENT_STREAM_URL ?? '',
   suzumeProxy: import.meta.env.VITE_GEMINI_PROXY_URL ?? '/api/suzume',
   questRewardApi: import.meta.env.VITE_QUEST_REWARD_API ?? '/api/claim-quest',
+  jetpackRewardApi: import.meta.env.VITE_JETPACK_REWARD_API ?? '/api/claim-jetpack-reward',
+  jetpackStoreAddress: import.meta.env.VITE_JETPACK_STORE_ADDRESS ?? '',
 };
 
 export const isDemoMode = !config.vaultContract || !config.stampContract;

@@ -1,6 +1,7 @@
 import { signTransaction } from '@stellar/freighter-api';
-import { Address, Asset, Contract, Horizon, Memo, Networks, Operation, TransactionBuilder, nativeToScVal, rpc } from '@stellar/stellar-sdk';
+import { Address, Asset, Contract, Horizon, Keypair, Memo, Networks, Operation, TransactionBuilder, nativeToScVal, rpc } from '@stellar/stellar-sdk';
 import { config, isDemoMode } from './config';
+import { getJetpackPowerup, type JetpackPowerupId } from '../game/jetpack/powerups';
 
 const sleep = (milliseconds: number) => new Promise(resolve => window.setTimeout(resolve, milliseconds));
 const networkPassphrase = config.network === 'PUBLIC' ? Networks.PUBLIC : Networks.TESTNET;
@@ -8,6 +9,8 @@ const horizonUrl = config.network === 'PUBLIC' ? 'https://horizon.stellar.org' :
 
 export type FundRouteResult = { hash: string; demo: boolean };
 export type QuestRewardResult = { hash: string; amount: string; paid: boolean; message: string };
+export type JetpackRewardResult = { hash: string; amount: string; message: string };
+export type JetpackStorePurchase = { hash: string; amount: string; item: JetpackPowerupId };
 
 const testnetHorizon = new Horizon.Server('https://horizon-testnet.stellar.org');
 
@@ -39,6 +42,66 @@ export async function createWalletHandshake(address: string): Promise<string> {
     }
     throw error;
   }
+}
+
+/**
+ * A player-triggered Testnet completion receipt for the Jetpack arcade route.
+ * This is intentionally a tiny self-payment, not a game reward or XLM payout.
+ */
+export async function claimJetpackCompletionReceipt(address: string): Promise<string> {
+  try {
+    return await submitTestnetReceipt(address, 'JETPACK-ROUTE-07');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Could not create the Jetpack Testnet receipt.';
+    if (/not found|does not exist|account/i.test(message)) {
+      throw new Error('Fund this Freighter address on Stellar Testnet with Friendbot, then claim the receipt again.');
+    }
+    throw error;
+  }
+}
+
+/**
+ * Pays the configured public Testnet shop address via Freighter. The item itself is
+ * stored in the player's local arcade inventory only after Horizon accepts this payment.
+ */
+export async function purchaseJetpackPowerup(address: string, item: JetpackPowerupId): Promise<JetpackStorePurchase> {
+  if (config.network !== 'TESTNET') throw new Error('The Suzume supply shop is deliberately Testnet-only.');
+  if (!config.jetpackStoreAddress) throw new Error('The Testnet shop address is not configured yet. Add VITE_JETPACK_STORE_ADDRESS first.');
+  try { Keypair.fromPublicKey(config.jetpackStoreAddress); }
+  catch { throw new Error('The configured Testnet shop address is not a valid Stellar public key.'); }
+  if (address === config.jetpackStoreAddress) throw new Error('Connect a player wallet, not the shop wallet.');
+
+  const powerup = getJetpackPowerup(item);
+  try {
+    const account = await testnetHorizon.loadAccount(address);
+    const transaction = new TransactionBuilder(account, { fee: '100', networkPassphrase: Networks.TESTNET })
+      .addOperation(Operation.payment({ destination: config.jetpackStoreAddress, asset: Asset.native(), amount: powerup.price }))
+      .addMemo(Memo.text(`SZ-${item.toUpperCase()}-SHOP`))
+      .setTimeout(90)
+      .build();
+    const signed = await signTransaction(transaction.toXDR(), { networkPassphrase: Networks.TESTNET });
+    if (signed.error || !signed.signedTxXdr) throw new Error(signed.error ?? 'Freighter did not sign the shop purchase.');
+    const submitted = await testnetHorizon.submitTransaction(TransactionBuilder.fromXDR(signed.signedTxXdr, Networks.TESTNET));
+    return { hash: submitted.hash, amount: `${powerup.price} XLM`, item };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'The Testnet shop transaction could not be completed.';
+    if (/not found|does not exist|account/i.test(message)) throw new Error('Fund this Freighter address on Stellar Testnet with Friendbot, then try the shop again.');
+    throw error;
+  }
+}
+
+/** A player-triggered request for the Testnet treasury bounty after a completed delivery. */
+export async function claimJetpackDeliveryReward(address: string, run: { score: number; distance: number; ramen: number }): Promise<JetpackRewardResult> {
+  if (config.network !== 'TESTNET') throw new Error('Jetpack delivery bounties are deliberately available on Testnet only.');
+  const response = await fetch(config.jetpackRewardApi, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ address, score: run.score, distance: run.distance, ramen: run.ramen, claimId: crypto.randomUUID() }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || typeof body.hash !== 'string' || typeof body.amount !== 'string') {
+    throw new Error(typeof body.error === 'string' ? body.error : 'The Jetpack Testnet treasury is not configured yet.');
+  }
+  return { hash: body.hash, amount: body.amount, message: 'Testnet XLM delivered from Suzume’s reward treasury.' };
 }
 
 /**
