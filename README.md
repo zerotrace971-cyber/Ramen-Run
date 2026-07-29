@@ -47,6 +47,30 @@ https://ramen-run.vercel.app
 
 https://drive.google.com/file/d/1g5c6llwaG9J6xqqPYUZ3q_EuiKacKjKS/view?usp=sharing
 
+## User onboarding
+
+### User onboarding proof
+
+The following user-onboarding responses were collected during the July 2026 review period. The full response sheet is available here: [User onboarding proof spreadsheet](https://docs.google.com/spreadsheets/d/1iPndsoznlr07PqpgE-uWWfDu9Tp-oy2GhCo4GjcZ_gw/edit?usp=sharing).
+
+| Timestamp | Name | Email Id | Wallet Address | How much did you like the dApp | Feedback |
+| --- | --- | --- | --- | --- | --- |
+| 29/07/2026 13:41:35 | seyit ali | degirmenseyit@gmail.com | GDOCMYNNTH62NW37IZCN6BKQTM5Z73RW7OOFXRADLYXUABDN3UXWDTNC | 5 | A great idea that clearly involved a lot of hard work. |
+| 29/07/2026 13:49:14 | Bekir Erdem | l3ekirerdem@gmail.com | GBGHSPQEIZGJOJJDJYG5VVIPU7THJQU2Z4B6V5VF5IHUQ2SOLIRITDQS | 5 | Sponsor transactions error; UI felt a little complex; the game sometimes ends with an error. |
+| 29/07/2026 15:27:50 | Arijit Debnath | arijitdebnath008@gmail.com | GDBHMNAQ5CRSNNSHIVJRM3OGMIX3TS3VR2J5SHFUKPGDZDCMBXAVMONK | 5 | SPEECHLESS |
+| 29/07/2026 15:35:13 | Nitin Raj | nraj50745@gmail.com | GARRE4DTEUJIQSXRACCL6X55RH42S7WBO32F5HB4DU32MT6IL5TL3B3N | 5 | great |
+| 29/07/2026 17:33:21 | Deep Saha | ideepsaha25@gmail.com | GDIBWMLXW453K5AT4DI7EKPUQBUBPAMLPDN32NLUOKBHQH7EJYPCZCH3 | 5 | super cool app |
+| 29/07/2026 18:01:46 | Amitabh Dey | amitabhdey101@gmail.com | GBKYHWSL2MNUO73HWY6KWNOA64AKSUENCOBTR56M66HNLMMKMZHK5OAS | 5 | Proud of the product and the work behind it. |
+| 29/07/2026 18:49:03 | sujan mandal | sujanmandal2525@gmail.com | GABHLJSUU3HSYQMAADRQG3OUWBUK6BTY4JTBLLXY5WDS3QBBK7FJENCP | 5 | Very enthusiastic positive gameplay feedback. |
+| 29/07/2026 19:14:51 | Sk Jishan Uddin | j2097138@gmail.com | GAVVOOVYGE7QEJWQO2BZZBGYYSFQPBC3QAYWRC6AFP7E3UMCWFT6YC4U | 5 | Amazing game app; smooth, easy to use, and fun with clean performance. |
+| 29/07/2026 20:29:41 | Ankush Shaw | ankushshaw764@gmail.com | GBBIG4HLPGTLG6BH6YREVWJXEQ4NX74HTD444JD6A6XYS7DOFL2J6DEI | 4 | — |
+| 29/07/2026 20:48:31 | Subhadip Dutta | subhadipduttads@gmail.com | GAVNLCS3GSWLKXSLZ3ITSL7QNB5IGHEOELXAF6QTYACDLEJ7XRQKBBNO | 5 | Impressive performance and a great gaming experience. |
+| 29/07/2026 21:05:14 | Ritam saha | poppritu@gmail.com | GACMLTEWZ23NGJ5WZ2THYGLODFYTEKECB7J2U33H3DCSW2PEAQUEIZED | 4 | fantastic |
+
+### User feedback form
+
+Share feedback through the [Suzume's Stellar Ramen Run feedback form](https://docs.google.com/forms/d/e/1FAIpQLSdbj6dke3pHTKVq0GFViyV5WfQhFMguQJlBGR4bGnCTTKyN1A/viewform).
+
 ## Feature tour
 
 - A dedicated **Manga Archive** with six chapters and twelve illustrated pages, static cast compositions, chapter navigation, and opt-in Web Audio ambience for rain, kitchens, trains, lanterns, and the shrine finale.
