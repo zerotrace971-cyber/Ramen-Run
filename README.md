@@ -47,6 +47,18 @@ https://ramen-run.vercel.app
 
 https://drive.google.com/file/d/1g5c6llwaG9J6xqqPYUZ3q_EuiKacKjKS/view?usp=sharing
 
+## CI CD working pipeline for Level 4
+
+The GitHub Actions pipeline completed the frontend lint/test/build, backend Vercel-function validation, Soroban contract tests/WASM build, and verified Vercel production deployment.
+
+![Successful GitHub Actions CI/CD pipeline with Vercel deployment](public/assets/ci-cd-working-pipeline-level-4.png)
+
+## Test passed
+
+Frontend unit tests completed successfully: 2 test files and 9 assertions passed.
+
+![Vitest output showing 2 test files and 9 tests passed](public/assets/test-passed-level-4.png)
+
 ## User onboarding
 
 ### User onboarding proof
