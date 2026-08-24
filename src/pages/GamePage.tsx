@@ -28,7 +28,7 @@ export function GamePage() {
         coins: current.coins + (delivered ? 80 + result.ramen * 6 + result.sparks * 10 : 8),
         unlockedLevel: delivered ? Math.max(current.unlockedLevel, 2) : current.unlockedLevel,
         completedLevels: [...completed],
-        perfectRuns: current.perfectRuns + (delivered && !result.shieldUsed ? 1 : 0),
+        perfectRuns: current.perfectRuns + (delivered && !result.shieldUsed && result.hitsTaken === 0 ? 1 : 0),
         bestCombo: Math.max(current.bestCombo, result.bestCombo),
       };
     });

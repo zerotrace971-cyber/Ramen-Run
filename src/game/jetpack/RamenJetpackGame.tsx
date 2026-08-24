@@ -1,11 +1,12 @@
 import { Pause, Play, RotateCcw, ShieldCheck, Sparkles, TimerReset, Trophy, Volume2, VolumeX, Zap } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSound } from '../useSound';
+import { comboScore, getComboMultiplier, getRouteDistrict, isNearMiss, MAX_INTEGRITY } from './mechanics';
 import { emptyJetpackPowerups, jetpackPowerups, type JetpackPowerupId, type JetpackPowerupInventory } from './powerups';
 import './RamenJetpackGame.css';
 
 export type JetpackRunResult = {
-  outcome: 'delivered' | 'crashed'; score: number; ramen: number; sparks: number; distance: number; bestCombo: number; shieldUsed: boolean; duration: number; reason?: 'drone' | 'laser';
+  outcome: 'delivered' | 'crashed'; score: number; ramen: number; sparks: number; distance: number; bestCombo: number; shieldUsed: boolean; hitsTaken: number; nearMisses: number; duration: number; reason?: 'drone' | 'laser';
 };
 
 export type JetpackReceiptState = { status: 'idle' | 'loading' | 'ready' | 'error'; message?: string; hash?: string; amount?: string };
@@ -22,8 +23,8 @@ type Props = {
 type Phase = 'briefing' | 'running' | 'paused' | 'result';
 type EntityKind = 'drone' | 'laser' | 'ramen' | 'spark' | 'shield';
 type Entity = { id: number; kind: EntityKind; x: number; y: number; width: number; height: number; passed?: boolean };
-type RunState = { y: number; velocity: number; distance: number; score: number; ramen: number; sparks: number; combo: number; bestCombo: number; shield: number; magnet: number; chrono: number; shieldUsed: boolean; elapsed: number; speed: number; nextDispatch: number };
-type Hud = Pick<RunState, 'distance' | 'score' | 'ramen' | 'sparks' | 'combo' | 'bestCombo' | 'shield' | 'magnet' | 'chrono' | 'speed'>;
+type RunState = { y: number; velocity: number; distance: number; score: number; ramen: number; sparks: number; combo: number; bestCombo: number; shield: number; magnet: number; chrono: number; shieldUsed: boolean; integrity: number; invulnerable: number; hitsTaken: number; nearMisses: number; elapsed: number; speed: number; nextDispatch: number };
+type Hud = Pick<RunState, 'distance' | 'score' | 'ramen' | 'sparks' | 'combo' | 'bestCombo' | 'shield' | 'magnet' | 'chrono' | 'speed' | 'integrity' | 'nearMisses'>;
 type Art = Partial<Record<'background' | 'player' | 'drone' | 'ramen' | 'spark' | 'shield', HTMLImageElement>>;
 
 const WIDTH = 1280;
@@ -40,8 +41,8 @@ const dispatcherLines = [
   'Customer updated: “driver nearby.” Technically true.',
 ];
 
-const createRun = (): RunState => ({ y: HEIGHT * .5, velocity: 0, distance: 0, score: 0, ramen: 0, sparks: 0, combo: 0, bestCombo: 0, shield: 0, magnet: 0, chrono: 0, shieldUsed: false, elapsed: 0, speed: 385, nextDispatch: 8 });
-const createHud = (state: RunState): Hud => ({ distance: state.distance, score: state.score, ramen: state.ramen, sparks: state.sparks, combo: state.combo, bestCombo: state.bestCombo, shield: state.shield, magnet: state.magnet, chrono: state.chrono, speed: state.speed });
+const createRun = (): RunState => ({ y: HEIGHT * .5, velocity: 0, distance: 0, score: 0, ramen: 0, sparks: 0, combo: 0, bestCombo: 0, shield: 0, magnet: 0, chrono: 0, shieldUsed: false, integrity: MAX_INTEGRITY, invulnerable: 0, hitsTaken: 0, nearMisses: 0, elapsed: 0, speed: 385, nextDispatch: 8 });
+const createHud = (state: RunState): Hud => ({ distance: state.distance, score: state.score, ramen: state.ramen, sparks: state.sparks, combo: state.combo, bestCombo: state.bestCombo, shield: state.shield, magnet: state.magnet, chrono: state.chrono, speed: state.speed, integrity: state.integrity, nearMisses: state.nearMisses });
 const isHazard = (kind: EntityKind) => kind === 'drone' || kind === 'laser';
 const isPickup = (kind: EntityKind) => kind === 'ramen' || kind === 'spark' || kind === 'shield';
 const randomBetween = (min: number, max: number) => min + Math.random() * (max - min);
@@ -113,7 +114,7 @@ export default function RamenJetpackGame({ goalDistance = GOAL, onRunEnd, onClai
     if (endedRef.current) return;
     endedRef.current = true; thrustRef.current = false;
     const state = stateRef.current;
-    const result: JetpackRunResult = { outcome, reason, score: state.score, ramen: state.ramen, sparks: state.sparks, distance: Math.round(state.distance), bestCombo: state.bestCombo, shieldUsed: state.shieldUsed, duration: Math.round(state.elapsed) };
+    const result: JetpackRunResult = { outcome, reason, score: state.score, ramen: state.ramen, sparks: state.sparks, distance: Math.round(state.distance), bestCombo: state.bestCombo, shieldUsed: state.shieldUsed, hitsTaken: state.hitsTaken, nearMisses: state.nearMisses, duration: Math.round(state.elapsed) };
     setHud(createHud(state)); setLastRun(result); setPhase('result');
     setLine(outcome === 'delivered' ? 'Balcony twelve, blue lantern. Express means express.' : reason === 'laser' ? 'Okay. New plan: less laser.' : 'Tell dispatch the drone failed to signal.');
     play(outcome === 'delivered' ? 'win' : 'hit'); onRunEnd?.(result);
@@ -184,7 +185,7 @@ export default function RamenJetpackGame({ goalDistance = GOAL, onRunEnd, onClai
         state.velocity += (targetVelocity - state.velocity) * Math.min(1, response * delta);
         state.y += state.velocity * delta;
         if (state.y < 72) { state.y = 72; state.velocity = 0; } if (state.y > HEIGHT - 82) { state.y = HEIGHT - 82; state.velocity = 0; }
-        state.shield = Math.max(0, state.shield - delta); state.magnet = Math.max(0, state.magnet - delta); state.chrono = Math.max(0, state.chrono - delta);
+        state.shield = Math.max(0, state.shield - delta); state.magnet = Math.max(0, state.magnet - delta); state.chrono = Math.max(0, state.chrono - delta); state.invulnerable = Math.max(0, state.invulnerable - delta);
         spawnRef.current.hazard -= worldDelta; spawnRef.current.pickup -= worldDelta;
         if (spawnRef.current.hazard <= 0) {
           const laser = Math.random() < .31; const height = laser ? randomBetween(108, 180) : 68; const y = laser ? randomBetween(78, HEIGHT - height - 78) : randomBetween(76, HEIGHT - 135);
@@ -207,14 +208,22 @@ export default function RamenJetpackGame({ goalDistance = GOAL, onRunEnd, onClai
           if (overlaps(player, entity)) {
             if (isHazard(entity.kind)) {
               if (state.shield > 0) { state.shield = 0; state.shieldUsed = true; state.combo = 0; setLine('Kitsune Aegis shattered. Broth still level. That was close.'); play('hit'); }
-              else { finishRun('crashed', entity.kind === 'laser' ? 'laser' : 'drone'); continue; }
-            } else if (entity.kind === 'ramen') { state.ramen += 1; state.score += 55; state.combo += 1; play('collect'); setLine(state.ramen % 4 === 0 ? 'Order intact. The customer can smell victory.' : 'Still hot. Keep moving.'); }
-            else if (entity.kind === 'spark') { state.sparks += 1; state.score += 140; state.combo += 2; play('collect'); setLine('Stellar spark acquired. It looks expensive. It is only score, sadly.'); }
+              else if (state.invulnerable <= 0) {
+                state.integrity -= 1; state.hitsTaken += 1; state.invulnerable = 1.55; state.combo = 0; state.score = Math.max(0, state.score - 100); play('hit');
+                if (state.integrity <= 0) { finishRun('crashed', entity.kind === 'laser' ? 'laser' : 'drone'); continue; }
+                setLine(state.integrity === 1 ? 'Broth integrity critical! One more hit ends the route.' : 'Impact absorbed. Stabilizers give you two seconds to recover.');
+              }
+            } else if (entity.kind === 'ramen') { state.ramen += 1; state.combo += 1; state.score += comboScore(55, state.combo); play('collect'); setLine(state.ramen % 4 === 0 ? 'Order intact. The customer can smell victory.' : 'Still hot. Keep moving.'); }
+            else if (entity.kind === 'spark') { state.sparks += 1; state.combo += 2; state.score += comboScore(140, state.combo); play('collect'); setLine('Stellar spark acquired. Combo multiplier engaged.'); }
             else { state.shield = 5.5; play('boost'); setLine('Route shield found. One rude collision can wait.'); }
             state.bestCombo = Math.max(state.bestCombo, state.combo); continue;
           }
           if (entity.x + entity.width < PLAYER_X - 55) {
-            if (isHazard(entity.kind) && !entity.passed) { state.combo += 1; state.bestCombo = Math.max(state.bestCombo, state.combo); if (state.combo === 4 || state.combo === 8) setLine(state.combo === 8 ? 'Express means express. Try to keep up, city.' : 'Route is opening up. Keep the line clean.'); }
+            if (isHazard(entity.kind) && !entity.passed) {
+              const near = isNearMiss(state.y, entity.y, entity.height); state.combo += near ? 2 : 1;
+              if (near) { state.nearMisses += 1; state.score += comboScore(90, state.combo); play('collect'); setLine(`NEAR MISS +${comboScore(90, state.combo)}. The city blinked first.`); }
+              state.bestCombo = Math.max(state.bestCombo, state.combo); if (!near && (state.combo === 4 || state.combo === 8)) setLine(state.combo === 8 ? 'Express means express. Try to keep up, city.' : 'Route is opening up. Keep the line clean.');
+            }
             continue;
           }
           nextEntities.push(entity);
@@ -235,8 +244,10 @@ export default function RamenJetpackGame({ goalDistance = GOAL, onRunEnd, onClai
       context.strokeStyle = state.chrono > 0 ? 'rgba(255,218,100,.34)' : 'rgba(103,241,255,.24)'; context.lineWidth = 2;
       for (let index = 0; index < 14; index += 1) { const y = 46 + (index * 53) % 590; const speedLine = 75 + (index % 4) * 42; const x = (index * 163 + state.distance * (index % 3 + 1) * 3) % (WIDTH + 150) - 150; context.beginPath(); context.moveTo(x, y); context.lineTo(x + speedLine, y); context.stroke(); }
       for (const entity of entitiesRef.current) drawEntity(context, entity, artRef.current);
-      drawSuzume(context, state.y, thrustRef.current && phaseRef.current === 'running', state.shield, artRef.current.player);
+      context.globalAlpha = state.invulnerable > 0 && Math.floor(state.invulnerable * 12) % 2 === 0 ? .42 : 1;
+      drawSuzume(context, state.y, thrustRef.current && phaseRef.current === 'running', state.shield, artRef.current.player); context.globalAlpha = 1;
       if (state.chrono > 0) { context.fillStyle = 'rgba(255,218,100,.08)'; context.fillRect(0, 0, WIDTH, HEIGHT); }
+      if (getComboMultiplier(state.combo) >= 2) { context.strokeStyle = 'rgba(255,218,100,.35)'; context.lineWidth = 9; context.strokeRect(5, 5, WIDTH - 10, HEIGHT - 10); }
       context.fillStyle = 'rgba(255,255,255,.035)'; context.fillRect(0, 0, WIDTH, HEIGHT);
       frame = requestAnimationFrame(render);
     };
@@ -245,19 +256,22 @@ export default function RamenJetpackGame({ goalDistance = GOAL, onRunEnd, onClai
 
   const pointerStart = () => { if (phase === 'briefing' || phase === 'result') startRun(true); else setThrust(true); };
   const delivered = lastRun?.outcome === 'delivered';
+  const district = getRouteDistrict(hud.distance, goalDistance);
+  const multiplier = getComboMultiplier(hud.combo);
   return <section className="jetpack-game" aria-label="Ramen Run jetpack delivery game">
     <div className="jetpack-hud">
-      <div><small>ROUTE 07 · 上空便</small><b>{Math.min(100, Math.round(hud.distance / goalDistance * 100))}% <span>to balcony twelve</span></b></div>
-      <div><small>DELIVERY SCORE</small><b>{hud.score.toLocaleString()}</b></div>
+      <div><small>{district.name.toUpperCase()} · {district.japanese}</small><b>{Math.min(100, Math.round(hud.distance / goalDistance * 100))}% <span>{district.intensity}</span></b></div>
+      <div className={multiplier >= 2 ? 'fever-score' : ''}><small>DELIVERY SCORE · x{multiplier}</small><b>{hud.score.toLocaleString()}</b></div>
       <div><small>RAMEN SEALS</small><b>{hud.ramen} <span>· sparks {hud.sparks}</span></b></div>
-      <div className={hud.shield > 0 ? 'active-shield' : ''}><small>AEGIS</small><b>{hud.shield > 0 ? `${hud.shield.toFixed(1)}s` : 'offline'}</b></div>
+      <div className={hud.integrity === 1 ? 'critical-integrity' : ''}><small>BROTH INTEGRITY</small><b>{'♥'.repeat(hud.integrity)}<span>{'♡'.repeat(MAX_INTEGRITY - hud.integrity)}</span></b></div>
+      <div className={hud.shield > 0 ? 'active-shield' : ''}><small>AEGIS · NEAR {hud.nearMisses}</small><b>{hud.shield > 0 ? `${hud.shield.toFixed(1)}s` : 'standby'}</b></div>
     </div>
     <div className="jetpack-canvas-shell">
       <canvas ref={canvasRef} width={WIDTH} height={HEIGHT} role="img" aria-label="Ramen Run jetpack delivery game. Hold Space, W, Arrow Up, mouse, or touch to rise. Release to descend. Press 1, 2, or 3 to use a purchased power-up. Press P or Escape to pause." onPointerDown={pointerStart} onPointerUp={() => setThrust(false)} onPointerLeave={() => setThrust(false)} />
       {phase === 'briefing' && <div className="jetpack-overlay">
         <img src="/assets/ramen-jetpack/ramen-run-logo.svg" alt="Ramen Run" />
         <span className="jetpack-kicker">STELLAR EXPRESS // ROUTE 07</span><h2>Hot ramen. Cold vacuum.<br />Zero excuses.</h2>
-        <p>Space is now a proper arcade throttle: hold to climb, release to fall into the next neon lane. Deliver the broth to the blue lantern before the city wins.</p>
+        <p>Hold to climb and release to dive through three escalating districts. You have three broth-integrity hearts; skim hazards for near-miss bonuses and build a x3 score fever.</p>
         <div className="jetpack-loadout-preview">{jetpackPowerups.map(powerup => <span key={powerup.id}><i className={`powerup-art ${powerup.id}`} /><b>{powerup.key}</b> {powerup.name} <em>×{visiblePowerups[powerup.id]}</em></span>)}</div>
         <button onClick={() => startRun()}><Play size={17} fill="currentColor" /> Launch delivery</button><small>Hold Space / W / ↑ / touch to rise · 1, 2, 3 use bought route tools · P or Esc pauses</small>
       </div>}
@@ -265,7 +279,7 @@ export default function RamenJetpackGame({ goalDistance = GOAL, onRunEnd, onClai
       {phase === 'result' && lastRun && <div className="jetpack-overlay result">
         <span className="jetpack-kicker">{delivered ? 'DESTINATION LOCKED' : 'DELIVERY INTERRUPTED'}</span>{delivered ? <Trophy size={38} /> : <Zap size={38} />}<h2>{delivered ? 'Route recorded.' : 'The city gets another chance.'}</h2>
         <p>{delivered ? `Balcony twelve received ${lastRun.ramen} ramen seals and ${lastRun.sparks} Stellar sparks.` : 'No shame, courier. Obstacles are famously rude. Reset and give the sky another chance.'}</p>
-        <div className="jetpack-result-grid"><span><b>{lastRun.score}</b> score</span><span><b>{lastRun.distance}m</b> flown</span><span><b>x{lastRun.bestCombo}</b> best combo</span></div>
+        <div className="jetpack-result-grid"><span><b>{lastRun.score}</b> score</span><span><b>{lastRun.distance}m</b> flown</span><span><b>x{lastRun.bestCombo}</b> combo</span><span><b>{lastRun.nearMisses}</b> near misses</span></div>
         {delivered && onClaimDeliveryReward && <div className="jetpack-claim"><ShieldCheck size={17} /><p>Completed delivery bounty: <b>0.35 XLM on Stellar Testnet.</b> This sends XLM from the configured treasury only after you explicitly claim it.</p>{reward.status === 'ready' ? <a href={`https://stellar.expert/explorer/testnet/tx/${reward.hash}`} target="_blank" rel="noreferrer">{reward.amount} sent · View transaction ↗</a> : <button className="claim-button" onClick={() => onClaimDeliveryReward(lastRun)} disabled={reward.status === 'loading'}>{reward.status === 'loading' ? 'Sending Testnet XLM…' : 'Claim delivery reward'}</button>}{reward.status === 'error' && <small className="claim-error">{reward.message}</small>}</div>}
         <button className="retry-button" onClick={() => startRun()}><RotateCcw size={16} /> Retry delivery</button>
       </div>}
