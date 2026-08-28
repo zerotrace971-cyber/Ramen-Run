@@ -25,7 +25,7 @@ type EntityKind = 'drone' | 'laser' | 'ramen' | 'spark' | 'shield';
 type Entity = { id: number; kind: EntityKind; x: number; y: number; width: number; height: number; passed?: boolean; bossShot?: boolean };
 type RunState = { y: number; velocity: number; distance: number; score: number; ramen: number; sparks: number; combo: number; bestCombo: number; shield: number; magnet: number; chrono: number; shieldUsed: boolean; integrity: number; invulnerable: number; hitsTaken: number; nearMisses: number; elapsed: number; speed: number; nextDispatch: number; bossActive: boolean; bossHealth: number; bossDefeated: boolean; bossShotTimer: number; bossIntro: number; districtIndex: number; checkpointTimer: number; checkpointTitle: string; flashTimer: number; flashText: string };
 type Hud = Pick<RunState, 'distance' | 'score' | 'ramen' | 'sparks' | 'combo' | 'bestCombo' | 'shield' | 'magnet' | 'chrono' | 'speed' | 'integrity' | 'nearMisses' | 'bossActive' | 'bossHealth' | 'bossDefeated'>;
-type Art = Partial<Record<'background' | 'player' | 'drone' | 'ramen' | 'spark' | 'shield', HTMLImageElement>>;
+type Art = Partial<Record<'background' | 'player' | 'drone' | 'ramen' | 'spark' | 'shield' | 'boss', HTMLImageElement>>;
 
 const WIDTH = 1280;
 const HEIGHT = 720;
@@ -50,7 +50,7 @@ const overlaps = (a: { x: number; y: number; width: number; height: number }, b:
 
 function loadArt(): Art {
   const root = '/assets/ramen-jetpack/';
-  const assets: Record<keyof Art, string> = { background: 'neon-skyway-v2.png', player: 'suzume-jetpack-v2.png', drone: 'delivery-drone.svg', ramen: 'ramen-seal.svg', spark: 'stellar-spark.svg', shield: 'shield.svg' };
+  const assets: Record<keyof Art, string> = { background: 'neon-skyway-v2.png', player: 'suzume-jetpack-v2.png', drone: 'delivery-drone.svg', ramen: 'ramen-seal.svg', spark: 'stellar-spark.svg', shield: 'shield.svg', boss: 'neko-shogun-boss.png' };
   return Object.fromEntries(Object.entries(assets).map(([key, source]) => {
     const image = new Image(); image.src = `${root}${source}`; return [key, image];
   })) as Art;
@@ -87,18 +87,21 @@ function drawEntity(context: CanvasRenderingContext2D, entity: Entity, art: Art)
   else { context.fillStyle = isHazard(entity.kind) ? '#ff5dab' : '#fff1c9'; context.fillRect(entity.x, entity.y, entity.width, entity.height); }
 }
 
-function drawNekoShogun(context: CanvasRenderingContext2D, health: number, elapsed: number) {
+function drawNekoShogun(context: CanvasRenderingContext2D, health: number, elapsed: number, boss?: HTMLImageElement) {
   const hover = Math.sin(elapsed * 4) * 12;
-  context.save(); context.translate(WIDTH - 170, HEIGHT * .48 + hover);
-  context.shadowColor = '#ff5e9e'; context.shadowBlur = 28;
-  context.fillStyle = '#17152f'; context.strokeStyle = '#ffca63'; context.lineWidth = 7;
-  context.beginPath(); context.moveTo(-72, -58); context.lineTo(-50, -116); context.lineTo(-10, -78); context.lineTo(29, -116); context.lineTo(68, -55); context.quadraticCurveTo(88, 2, 64, 63); context.quadraticCurveTo(0, 108, -67, 63); context.quadraticCurveTo(-91, 2, -72, -58); context.closePath(); context.fill(); context.stroke();
-  context.shadowBlur = 0; context.fillStyle = '#5ae5e1'; context.fillRect(-47, -24, 31, 14); context.fillRect(18, -24, 31, 14);
-  context.fillStyle = '#ff5e9e'; context.beginPath(); context.arc(1, 16, 12, 0, Math.PI * 2); context.fill();
-  context.strokeStyle = '#9a76ff'; context.lineWidth = 12; context.beginPath(); context.moveTo(-61, 45); context.lineTo(-111, 84); context.moveTo(61, 45); context.lineTo(111, 84); context.stroke();
-  context.fillStyle = '#080717'; context.strokeStyle = '#5ae5e1'; context.lineWidth = 4; context.fillRect(-98, 91, 196, 17); context.strokeRect(-98, 91, 196, 17);
-  context.fillStyle = '#ff5e9e'; context.fillRect(-94, 95, 188 * Math.max(0, health) / 100, 9);
-  context.fillStyle = '#f7f5f0'; context.font = "800 17px 'Space Mono', monospace"; context.textAlign = 'center'; context.fillText('NEKO SHOGUN', 0, 137);
+  const danger = health <= 35;
+  context.save(); context.translate(WIDTH - 180, HEIGHT * .47 + hover);
+  const aura = context.createRadialGradient(0, -12, 35, 0, -12, 205);
+  aura.addColorStop(0, danger ? 'rgba(255,76,127,.5)' : 'rgba(255,201,91,.32)');
+  aura.addColorStop(.58, 'rgba(154,118,255,.2)'); aura.addColorStop(1, 'rgba(8,7,23,0)');
+  context.fillStyle = aura; context.beginPath(); context.arc(0, -12, 205, 0, Math.PI * 2); context.fill();
+  context.shadowColor = danger ? '#ff4c7f' : '#ffc95b'; context.shadowBlur = danger ? 38 : 26;
+  if (boss?.complete && boss.naturalWidth > 0) context.drawImage(boss, -155, -238, 310, 465);
+  else { context.fillStyle = '#ffca63'; context.beginPath(); context.arc(0, -15, 115, 0, Math.PI * 2); context.fill(); }
+  context.shadowBlur = 0;
+  context.fillStyle = 'rgba(8,7,23,.9)'; context.strokeStyle = danger ? '#ff4c7f' : '#5ae5e1'; context.lineWidth = 4; context.fillRect(-112, 219, 224, 20); context.strokeRect(-112, 219, 224, 20);
+  context.fillStyle = danger ? '#ff4c7f' : '#ff5e9e'; context.fillRect(-107, 224, 214 * Math.max(0, health) / 100, 10);
+  context.fillStyle = '#f7f5f0'; context.font = "900 17px 'Space Mono', monospace"; context.textAlign = 'center'; context.fillText(`NEKO SHOGUN · ${Math.round(health)}%`, 0, 269);
   context.restore();
 }
 
@@ -295,7 +298,7 @@ export default function RamenJetpackGame({ goalDistance = GOAL, onRunEnd, onClai
       context.fillStyle = 'rgba(7,8,29,.18)'; context.fillRect(0, 0, WIDTH, HEIGHT);
       context.strokeStyle = state.chrono > 0 ? 'rgba(255,218,100,.34)' : 'rgba(103,241,255,.24)'; context.lineWidth = 2;
       for (let index = 0; index < 14; index += 1) { const y = 46 + (index * 53) % 590; const speedLine = 75 + (index % 4) * 42; const x = (index * 163 + state.distance * (index % 3 + 1) * 3) % (WIDTH + 150) - 150; context.beginPath(); context.moveTo(x, y); context.lineTo(x + speedLine, y); context.stroke(); }
-      if (state.bossActive) drawNekoShogun(context, state.bossHealth, state.elapsed);
+      if (state.bossActive) drawNekoShogun(context, state.bossHealth, state.elapsed, artRef.current.boss);
       for (const entity of entitiesRef.current) drawEntity(context, entity, artRef.current);
       context.globalAlpha = state.invulnerable > 0 && Math.floor(state.invulnerable * 12) % 2 === 0 ? .42 : 1;
       drawSuzume(context, state.y, thrustRef.current && phaseRef.current === 'running', state.shield, artRef.current.player); context.globalAlpha = 1;
