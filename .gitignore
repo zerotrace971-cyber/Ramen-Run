@@ -5,6 +5,11 @@ coverage/
 .env.local
 .vercel/
 .superdesign/tmp/
+scripts/seed-manifest.json
+scripts/seed-redis.mjs
+scripts/seed-redis.ps1
+scripts/seed-fifty-wallets.mjs
+api/seed.mjs
 target/
 **/*.tsbuildinfo
 contracts/**/target/

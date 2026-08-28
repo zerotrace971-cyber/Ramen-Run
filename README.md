@@ -261,11 +261,3 @@ scripts/event-relay.mjs      Soroban RPC → Server-Sent Events adapter
 .github/workflows/ci-cd.yml  Frontend, backend, Soroban, and Vercel CD pipeline
 ```
 
-## License
-
-MIT
-
-
-
-
-done
