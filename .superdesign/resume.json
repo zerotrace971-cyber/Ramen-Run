@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "/game": {
+      "targetKind": "existing-ui",
+      "projectId": "d3e66435-9f6e-459d-a7b5-4d734c5dc32a",
+      "baselineDraftId": "f9d14e2c-654c-4a9a-9fcc-0e90130a4209",
+      "activeDraftId": "784826ed-922b-4f32-9bf6-6ee6701c8c68",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        "src/pages/GamePage.tsx",
+        "src/game/jetpack/RamenJetpackGame.tsx",
+        "src/game/jetpack/RamenJetpackGame.css",
+        "src/game/jetpack/powerups.ts",
+        "src/game/jetpack/mechanics.ts",
+        "src/components/AppShell.tsx",
+        "src/components/Brand.tsx",
+        ".superdesign/init/theme.md",
+        ".superdesign/design-system.md"
+      ],
+      "fingerprints": {
+        "src/pages/GamePage.tsx": "b44aba1da68aff8e7758ce6740e76f47b8b9927b1b25bfd4adc354dbf8a9b63c",
+        "src/game/jetpack/RamenJetpackGame.tsx": "b3e4a04aec6e5d4241bb07acb8b819fa52478cf443fa0afd31924f3d2dede206",
+        "src/game/jetpack/RamenJetpackGame.css": "8d525f5166dd2b07b269df9a0a8de3ae10f0590c8e97e40917a203e35490a0ab",
+        "src/game/jetpack/powerups.ts": "1c42aa74f821f69ba2a36cac47bc84d618d39832830973c62f1d28961a595075",
+        "src/game/jetpack/mechanics.ts": "b8f33cf2178ee379885b2cd760b39e37c4ec34fda7166fda187a63602b849f53",
+        "src/components/AppShell.tsx": "95a3efd8adac547e9ad87c6a33674065df791226eb5e06bf3d706f9b46e29365",
+        "src/components/Brand.tsx": "89746bc498fcc9ace8141e6dc55672774f2f3ec2a5eb3dcf8fd1b58d2e091467",
+        ".superdesign/init/theme.md": "adec3a3db2667f50ff91347af0dc6acf399c1e1ef30d3ffd6dc2460d3a030b35",
+        ".superdesign/design-system.md": "bc2dc8b53297d80baa7c4f3e33b163925865fd405e9a0283718e4883bd66fc00"
+      },
+      "referenceIds": [
+        "e2766059-68cb-4036-985e-af8d219de0bc",
+        "8b52fb54-913f-48d6-84b2-ef5ba1a20055",
+        "cb82460a-75ac-467d-babc-ff9bba66282e",
+        "80b6ff3c-bee1-44c8-a7ac-4ead07f8e4a9"
+      ],
+      "components": [
+        {
+          "name": "AppShell",
+          "componentId": "f89b4f49-850b-4630-a6b1-e76215a995cc",
+          "sourcePath": "src/components/AppShell.tsx"
+        }
+      ],
+      "drafts": {
+        "f9d14e2c-654c-4a9a-9fcc-0e90130a4209": {
+          "title": "Ramen Run — Current Game Baseline",
+          "visualDirection": "faithful current UI reproduction",
+          "currentVersion": 1
+        },
+        "784826ed-922b-4f32-9bf6-6ee6701c8c68": {
+          "title": "Suzume’s Stellar Ramen Run — Enhanced Arcade Mode",
+          "visualDirection": "game-first manga arcade with objectives, districts, boss, and collapsed shop",
+          "parentDraftId": "f9d14e2c-654c-4a9a-9fcc-0e90130a4209",
+          "currentVersion": 2
+        }
+      },
+      "updatedAt": "2026-08-28T00:00:00+05:30"
+    }
+  }
+}
