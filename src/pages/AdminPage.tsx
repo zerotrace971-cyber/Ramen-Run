@@ -7,7 +7,16 @@ const eventNames: Record<string, string> = {
   wallet_login: 'Freighter login', route_funded: 'Route funded', quest_reward: 'Quest bounty', quest_receipt: 'Quest receipt', jetpack_shop: 'Jetpack shop', jetpack_reward: 'Route 07 bounty', jetpack_receipt: 'Completion receipt',
 };
 const shorten = (value: string, head = 8, tail = 6) => `${value.slice(0, head)}...${value.slice(-tail)}`;
-const formatTime = (value: string) => new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+const formatTime = (value: string) => {
+  const d = new Date(value);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return `${dd}/${mm}/${yyyy} ${hh}:${mi}:${ss}`;
+};
 
 export function AdminPage() {
   const [token, setToken] = useState(() => sessionStorage.getItem(sessionKey) ?? '');
