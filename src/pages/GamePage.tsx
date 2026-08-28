@@ -1,8 +1,9 @@
-import { ArrowLeft, CheckCircle2, ShoppingBag, Sparkles, WalletCards } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronDown, ShoppingBag, Sparkles, WalletCards } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../App';
 import RamenJetpackGame, { type JetpackReceiptState, type JetpackRunResult } from '../game/jetpack/RamenJetpackGame';
+import { bestRunGrade, objectiveCoinBonus } from '../game/jetpack/mechanics';
 import { jetpackPowerups, type JetpackPowerupId } from '../game/jetpack/powerups';
 import { useGameProgress } from '../game/progress';
 import { config } from '../lib/config';
@@ -15,21 +16,24 @@ export function GamePage() {
   const { progress, update } = useGameProgress();
   const [reward, setReward] = useState<JetpackReceiptState>({ status: 'idle' });
   const [shop, setShop] = useState<ShopState>({ status: 'idle' });
+  const [shopOpen, setShopOpen] = useState(false);
 
   const recordRun = useCallback((result: JetpackRunResult) => {
     setReward({ status: 'idle' });
     update(current => {
       const delivered = result.outcome === 'delivered';
+      const contractBonus = objectiveCoinBonus(result.objectivesCompleted, result.bossDefeated);
       const completed = new Set(current.completedLevels);
       if (delivered) completed.add(1);
       return {
         runs: current.runs + 1,
         highScore: Math.max(current.highScore, result.score),
-        coins: current.coins + (delivered ? 80 + result.ramen * 6 + result.sparks * 10 : 8),
+        coins: current.coins + (delivered ? 80 + result.ramen * 6 + result.sparks * 10 + contractBonus : 8 + result.objectivesCompleted * 5),
         unlockedLevel: delivered ? Math.max(current.unlockedLevel, 2) : current.unlockedLevel,
         completedLevels: [...completed],
         perfectRuns: current.perfectRuns + (delivered && !result.shieldUsed && result.hitsTaken === 0 ? 1 : 0),
         bestCombo: Math.max(current.bestCombo, result.bestCombo),
+        bestJetpackGrade: bestRunGrade(current.bestJetpackGrade, result.grade),
       };
     });
   }, [update]);
@@ -82,26 +86,29 @@ export function GamePage() {
       </div>
     </header>
 
-    <section className="jetpack-store" aria-labelledby="jetpack-store-title">
-      <div className="jetpack-store-heading">
-        <span><ShoppingBag size={16} /> TESTNET SUPPLY WINDOW</span>
-        <div><h2 id="jetpack-store-title">Suzume’s rooftop shop</h2><p>Three one-use route tools. Buy with an explicit Freighter Testnet XLM payment, then trigger them mid-flight.</p></div>
-        <small>{config.jetpackStoreAddress ? 'Freighter checkout enabled' : 'Add the shop address to enable checkout'}</small>
-      </div>
-      <div className="jetpack-store-grid">
-        {jetpackPowerups.map(powerup => <article className={`jetpack-store-card ${powerup.id}`} key={powerup.id}>
-          <span className={`powerup-art ${powerup.id}`} aria-hidden="true" />
-          <div className="powerup-copy"><span>{powerup.japanese}</span><h3>{powerup.name}</h3><p>{powerup.description}</p><small>Press {powerup.key} in-flight · {powerup.duration}</small></div>
-          <div className="powerup-buy"><b>{progress.jetpackPowerups[powerup.id] ?? 0}<small> in bag</small></b><button onClick={() => void buyPowerup(powerup.id)} disabled={shop.status === 'loading' || !config.jetpackStoreAddress}>{shop.status === 'loading' && shop.id === powerup.id ? 'Opening Freighter…' : `${powerup.price} XLM · Buy`}</button></div>
-        </article>)}
-      </div>
-      {shop.status !== 'idle' && <p className={`jetpack-shop-message ${shop.status}`}>
-        {shop.status === 'ready' && <CheckCircle2 size={15} />}{shop.message}
-        {shop.hash && <a href={`https://stellar.expert/explorer/testnet/tx/${shop.hash}`} target="_blank" rel="noreferrer"> View transaction ↗</a>}
-      </p>}
-    </section>
-
     <RamenJetpackGame onRunEnd={recordRun} onClaimDeliveryReward={run => void claimReward(run)} reward={reward} powerups={progress.jetpackPowerups} onUsePowerup={usePowerup} />
-    <footer className="arcade-footer"><span><Sparkles size={14} /> Runs: {progress.runs}</span><span>Broth coins: {progress.coins}</span><span>High score: {progress.highScore}</span><Link to="/game/quests">Character side quests →</Link></footer>
+
+    <section className={`jetpack-store ${shopOpen ? 'open' : ''}`} aria-labelledby="jetpack-store-title">
+      <button className="jetpack-store-heading jetpack-store-toggle" type="button" aria-expanded={shopOpen} onClick={() => setShopOpen(open => !open)}>
+        <span><ShoppingBag size={16} /> TESTNET SUPPLY WINDOW</span>
+        <div><h2 id="jetpack-store-title">Loadout & rooftop shop</h2><p>Optional one-use route tools · explicit Freighter Testnet XLM checkout.</p></div>
+        <small>{config.jetpackStoreAddress ? 'Freighter checkout enabled' : 'Add the shop address to enable checkout'}</small>
+        <i aria-hidden="true"><ChevronDown size={19} /></i>
+      </button>
+      {shopOpen && <div className="jetpack-store-body">
+        <div className="jetpack-store-grid">
+          {jetpackPowerups.map(powerup => <article className={`jetpack-store-card ${powerup.id}`} key={powerup.id}>
+            <span className={`powerup-art ${powerup.id}`} aria-hidden="true" />
+            <div className="powerup-copy"><span>{powerup.japanese}</span><h3>{powerup.name}</h3><p>{powerup.description}</p><small>Press {powerup.key} in-flight · {powerup.duration}</small></div>
+            <div className="powerup-buy"><b>{progress.jetpackPowerups[powerup.id] ?? 0}<small> in bag</small></b><button onClick={() => void buyPowerup(powerup.id)} disabled={shop.status === 'loading' || !config.jetpackStoreAddress}>{shop.status === 'loading' && shop.id === powerup.id ? 'Opening Freighter…' : `${powerup.price} XLM · Buy`}</button></div>
+          </article>)}
+        </div>
+        {shop.status !== 'idle' && <p className={`jetpack-shop-message ${shop.status}`}>
+          {shop.status === 'ready' && <CheckCircle2 size={15} />}{shop.message}
+          {shop.hash && <a href={`https://stellar.expert/explorer/testnet/tx/${shop.hash}`} target="_blank" rel="noreferrer"> View transaction ↗</a>}
+        </p>}
+      </div>}
+    </section>
+    <footer className="arcade-footer"><span><Sparkles size={14} /> Runs: {progress.runs}</span><span>Best grade: {progress.bestJetpackGrade}</span><span>Broth coins: {progress.coins}</span><span>High score: {progress.highScore}</span><Link to="/game/quests">Character side quests →</Link></footer>
   </div>;
 }
