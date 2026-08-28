@@ -1,12 +1,12 @@
 import { Pause, Play, RotateCcw, ShieldCheck, Sparkles, TimerReset, Trophy, Volume2, VolumeX, Zap } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSound } from '../useSound';
-import { comboScore, getComboMultiplier, getRouteDistrict, isNearMiss, MAX_INTEGRITY } from './mechanics';
+import { BOSS_CLEAR_PROGRESS, BOSS_START_PROGRESS, calculateRunGrade, comboScore, countCompletedObjectives, getComboMultiplier, getNightShiftObjectives, getRouteDistrict, isNearMiss, MAX_INTEGRITY, objectiveCoinBonus, type RunGrade } from './mechanics';
 import { emptyJetpackPowerups, jetpackPowerups, type JetpackPowerupId, type JetpackPowerupInventory } from './powerups';
 import './RamenJetpackGame.css';
 
 export type JetpackRunResult = {
-  outcome: 'delivered' | 'crashed'; score: number; ramen: number; sparks: number; distance: number; bestCombo: number; shieldUsed: boolean; hitsTaken: number; nearMisses: number; duration: number; reason?: 'drone' | 'laser';
+  outcome: 'delivered' | 'crashed'; score: number; ramen: number; sparks: number; distance: number; bestCombo: number; shieldUsed: boolean; hitsTaken: number; nearMisses: number; bossDefeated: boolean; objectivesCompleted: number; grade: RunGrade; duration: number; reason?: 'drone' | 'laser';
 };
 
 export type JetpackReceiptState = { status: 'idle' | 'loading' | 'ready' | 'error'; message?: string; hash?: string; amount?: string };
@@ -22,9 +22,9 @@ type Props = {
 
 type Phase = 'briefing' | 'running' | 'paused' | 'result';
 type EntityKind = 'drone' | 'laser' | 'ramen' | 'spark' | 'shield';
-type Entity = { id: number; kind: EntityKind; x: number; y: number; width: number; height: number; passed?: boolean };
-type RunState = { y: number; velocity: number; distance: number; score: number; ramen: number; sparks: number; combo: number; bestCombo: number; shield: number; magnet: number; chrono: number; shieldUsed: boolean; integrity: number; invulnerable: number; hitsTaken: number; nearMisses: number; elapsed: number; speed: number; nextDispatch: number };
-type Hud = Pick<RunState, 'distance' | 'score' | 'ramen' | 'sparks' | 'combo' | 'bestCombo' | 'shield' | 'magnet' | 'chrono' | 'speed' | 'integrity' | 'nearMisses'>;
+type Entity = { id: number; kind: EntityKind; x: number; y: number; width: number; height: number; passed?: boolean; bossShot?: boolean };
+type RunState = { y: number; velocity: number; distance: number; score: number; ramen: number; sparks: number; combo: number; bestCombo: number; shield: number; magnet: number; chrono: number; shieldUsed: boolean; integrity: number; invulnerable: number; hitsTaken: number; nearMisses: number; elapsed: number; speed: number; nextDispatch: number; bossActive: boolean; bossHealth: number; bossDefeated: boolean; bossShotTimer: number; bossIntro: number; districtIndex: number; checkpointTimer: number; checkpointTitle: string; flashTimer: number; flashText: string };
+type Hud = Pick<RunState, 'distance' | 'score' | 'ramen' | 'sparks' | 'combo' | 'bestCombo' | 'shield' | 'magnet' | 'chrono' | 'speed' | 'integrity' | 'nearMisses' | 'bossActive' | 'bossHealth' | 'bossDefeated'>;
 type Art = Partial<Record<'background' | 'player' | 'drone' | 'ramen' | 'spark' | 'shield', HTMLImageElement>>;
 
 const WIDTH = 1280;
@@ -41,8 +41,8 @@ const dispatcherLines = [
   'Customer updated: “driver nearby.” Technically true.',
 ];
 
-const createRun = (): RunState => ({ y: HEIGHT * .5, velocity: 0, distance: 0, score: 0, ramen: 0, sparks: 0, combo: 0, bestCombo: 0, shield: 0, magnet: 0, chrono: 0, shieldUsed: false, integrity: MAX_INTEGRITY, invulnerable: 0, hitsTaken: 0, nearMisses: 0, elapsed: 0, speed: 385, nextDispatch: 8 });
-const createHud = (state: RunState): Hud => ({ distance: state.distance, score: state.score, ramen: state.ramen, sparks: state.sparks, combo: state.combo, bestCombo: state.bestCombo, shield: state.shield, magnet: state.magnet, chrono: state.chrono, speed: state.speed, integrity: state.integrity, nearMisses: state.nearMisses });
+const createRun = (): RunState => ({ y: HEIGHT * .5, velocity: 0, distance: 0, score: 0, ramen: 0, sparks: 0, combo: 0, bestCombo: 0, shield: 0, magnet: 0, chrono: 0, shieldUsed: false, integrity: MAX_INTEGRITY, invulnerable: 0, hitsTaken: 0, nearMisses: 0, elapsed: 0, speed: 385, nextDispatch: 8, bossActive: false, bossHealth: 100, bossDefeated: false, bossShotTimer: .75, bossIntro: 0, districtIndex: 0, checkpointTimer: 0, checkpointTitle: '', flashTimer: 0, flashText: '' });
+const createHud = (state: RunState): Hud => ({ distance: state.distance, score: state.score, ramen: state.ramen, sparks: state.sparks, combo: state.combo, bestCombo: state.bestCombo, shield: state.shield, magnet: state.magnet, chrono: state.chrono, speed: state.speed, integrity: state.integrity, nearMisses: state.nearMisses, bossActive: state.bossActive, bossHealth: state.bossHealth, bossDefeated: state.bossDefeated });
 const isHazard = (kind: EntityKind) => kind === 'drone' || kind === 'laser';
 const isPickup = (kind: EntityKind) => kind === 'ramen' || kind === 'spark' || kind === 'shield';
 const randomBetween = (min: number, max: number) => min + Math.random() * (max - min);
@@ -87,6 +87,29 @@ function drawEntity(context: CanvasRenderingContext2D, entity: Entity, art: Art)
   else { context.fillStyle = isHazard(entity.kind) ? '#ff5dab' : '#fff1c9'; context.fillRect(entity.x, entity.y, entity.width, entity.height); }
 }
 
+function drawNekoShogun(context: CanvasRenderingContext2D, health: number, elapsed: number) {
+  const hover = Math.sin(elapsed * 4) * 12;
+  context.save(); context.translate(WIDTH - 170, HEIGHT * .48 + hover);
+  context.shadowColor = '#ff5e9e'; context.shadowBlur = 28;
+  context.fillStyle = '#17152f'; context.strokeStyle = '#ffca63'; context.lineWidth = 7;
+  context.beginPath(); context.moveTo(-72, -58); context.lineTo(-50, -116); context.lineTo(-10, -78); context.lineTo(29, -116); context.lineTo(68, -55); context.quadraticCurveTo(88, 2, 64, 63); context.quadraticCurveTo(0, 108, -67, 63); context.quadraticCurveTo(-91, 2, -72, -58); context.closePath(); context.fill(); context.stroke();
+  context.shadowBlur = 0; context.fillStyle = '#5ae5e1'; context.fillRect(-47, -24, 31, 14); context.fillRect(18, -24, 31, 14);
+  context.fillStyle = '#ff5e9e'; context.beginPath(); context.arc(1, 16, 12, 0, Math.PI * 2); context.fill();
+  context.strokeStyle = '#9a76ff'; context.lineWidth = 12; context.beginPath(); context.moveTo(-61, 45); context.lineTo(-111, 84); context.moveTo(61, 45); context.lineTo(111, 84); context.stroke();
+  context.fillStyle = '#080717'; context.strokeStyle = '#5ae5e1'; context.lineWidth = 4; context.fillRect(-98, 91, 196, 17); context.strokeRect(-98, 91, 196, 17);
+  context.fillStyle = '#ff5e9e'; context.fillRect(-94, 95, 188 * Math.max(0, health) / 100, 9);
+  context.fillStyle = '#f7f5f0'; context.font = "800 17px 'Space Mono', monospace"; context.textAlign = 'center'; context.fillText('NEKO SHOGUN', 0, 137);
+  context.restore();
+}
+
+function drawComicFlash(context: CanvasRenderingContext2D, title: string, subtitle: string, tone = '#ffc95b') {
+  context.save(); context.translate(WIDTH / 2, HEIGHT / 2); context.rotate(-.035);
+  context.fillStyle = '#080717'; context.fillRect(-320, -67, 640, 134);
+  context.strokeStyle = tone; context.lineWidth = 7; context.strokeRect(-320, -67, 640, 134);
+  context.fillStyle = tone; context.font = "900 46px 'Bricolage Grotesque', sans-serif"; context.textAlign = 'center'; context.fillText(title, 0, -6);
+  context.fillStyle = '#f7f5f0'; context.font = "800 15px 'Space Mono', monospace"; context.fillText(subtitle, 0, 31); context.restore();
+}
+
 export default function RamenJetpackGame({ goalDistance = GOAL, onRunEnd, onClaimDeliveryReward, reward = { status: 'idle' }, powerups = emptyJetpackPowerups, onUsePowerup }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const artRef = useRef<Art>({});
@@ -114,7 +137,8 @@ export default function RamenJetpackGame({ goalDistance = GOAL, onRunEnd, onClai
     if (endedRef.current) return;
     endedRef.current = true; thrustRef.current = false;
     const state = stateRef.current;
-    const result: JetpackRunResult = { outcome, reason, score: state.score, ramen: state.ramen, sparks: state.sparks, distance: Math.round(state.distance), bestCombo: state.bestCombo, shieldUsed: state.shieldUsed, hitsTaken: state.hitsTaken, nearMisses: state.nearMisses, duration: Math.round(state.elapsed) };
+    const nightShiftState = { ramen: state.ramen, nearMisses: state.nearMisses, integrity: state.integrity, bossDefeated: state.bossDefeated };
+    const result: JetpackRunResult = { outcome, reason, score: state.score, ramen: state.ramen, sparks: state.sparks, distance: Math.round(state.distance), bestCombo: state.bestCombo, shieldUsed: state.shieldUsed, hitsTaken: state.hitsTaken, nearMisses: state.nearMisses, bossDefeated: state.bossDefeated, objectivesCompleted: countCompletedObjectives(nightShiftState), grade: calculateRunGrade({ ...nightShiftState, delivered: outcome === 'delivered', score: state.score, hitsTaken: state.hitsTaken }), duration: Math.round(state.elapsed) };
     setHud(createHud(state)); setLastRun(result); setPhase('result');
     setLine(outcome === 'delivered' ? 'Balcony twelve, blue lantern. Express means express.' : reason === 'laser' ? 'Okay. New plan: less laser.' : 'Tell dispatch the drone failed to signal.');
     play(outcome === 'delivered' ? 'win' : 'hit'); onRunEnd?.(result);
@@ -179,15 +203,36 @@ export default function RamenJetpackGame({ goalDistance = GOAL, onRunEnd, onClai
         const timeScale = state.chrono > 0 ? .52 : 1;
         const worldDelta = delta * timeScale;
         state.distance += state.speed * worldDelta * .125;
+        const routeProgress = state.distance / goalDistance;
+        const nextDistrict = routeProgress >= .67 ? 2 : routeProgress >= .34 ? 1 : 0;
+        if (nextDistrict > state.districtIndex) {
+          state.districtIndex = nextDistrict; state.checkpointTimer = 1.8;
+          state.checkpointTitle = nextDistrict === 1 ? 'SHIBUYA SKYRAIL' : 'MOON SHRINE APPROACH';
+          play('boost');
+        }
+        if (!state.bossDefeated && !state.bossActive && routeProgress >= BOSS_START_PROGRESS) {
+          state.bossActive = true; state.bossIntro = 2.35; state.bossShotTimer = 1.25; state.checkpointTimer = 0;
+          entitiesRef.current = entitiesRef.current.filter(entity => !isHazard(entity.kind));
+          setLine('WARNING: Neko Shogun has sealed the Skyrail. Dodge its patrol volleys to counterattack.'); play('powerup');
+        }
+        if (state.bossActive) state.distance = Math.min(state.distance, goalDistance * BOSS_CLEAR_PROGRESS);
         // Direct target velocity gives Spacebar a precise arcade feel instead of floaty acceleration.
         const targetVelocity = thrustRef.current ? -430 : 330;
         const response = thrustRef.current ? 18 : 8.5;
         state.velocity += (targetVelocity - state.velocity) * Math.min(1, response * delta);
         state.y += state.velocity * delta;
         if (state.y < 72) { state.y = 72; state.velocity = 0; } if (state.y > HEIGHT - 82) { state.y = HEIGHT - 82; state.velocity = 0; }
-        state.shield = Math.max(0, state.shield - delta); state.magnet = Math.max(0, state.magnet - delta); state.chrono = Math.max(0, state.chrono - delta); state.invulnerable = Math.max(0, state.invulnerable - delta);
+        state.shield = Math.max(0, state.shield - delta); state.magnet = Math.max(0, state.magnet - delta); state.chrono = Math.max(0, state.chrono - delta); state.invulnerable = Math.max(0, state.invulnerable - delta); state.bossIntro = Math.max(0, state.bossIntro - delta); state.checkpointTimer = Math.max(0, state.checkpointTimer - delta); state.flashTimer = Math.max(0, state.flashTimer - delta);
         spawnRef.current.hazard -= worldDelta; spawnRef.current.pickup -= worldDelta;
-        if (spawnRef.current.hazard <= 0) {
+        if (state.bossActive && state.bossIntro <= .7) {
+          state.bossShotTimer -= worldDelta;
+          if (state.bossShotTimer <= 0) {
+            const laser = nextEntityRef.current % 2 === 0; const height = laser ? randomBetween(125, 205) : 78;
+            entitiesRef.current.push({ id: nextEntityRef.current++, kind: laser ? 'laser' : 'drone', bossShot: true, x: WIDTH - 175, y: randomBetween(78, HEIGHT - height - 78), width: laser ? 48 : 108, height });
+            state.bossShotTimer = randomBetween(.72, 1.02);
+          }
+        }
+        if (!state.bossActive && spawnRef.current.hazard <= 0) {
           const laser = Math.random() < .31; const height = laser ? randomBetween(108, 180) : 68; const y = laser ? randomBetween(78, HEIGHT - height - 78) : randomBetween(76, HEIGHT - 135);
           entitiesRef.current.push({ id: nextEntityRef.current++, kind: laser ? 'laser' : 'drone', x: WIDTH + 48, y, width: laser ? 44 : 98, height });
           spawnRef.current.hazard = Math.max(.82, 1.62 - state.distance / 3100);
@@ -213,7 +258,7 @@ export default function RamenJetpackGame({ goalDistance = GOAL, onRunEnd, onClai
                 if (state.integrity <= 0) { finishRun('crashed', entity.kind === 'laser' ? 'laser' : 'drone'); continue; }
                 setLine(state.integrity === 1 ? 'Broth integrity critical! One more hit ends the route.' : 'Impact absorbed. Stabilizers give you two seconds to recover.');
               }
-            } else if (entity.kind === 'ramen') { state.ramen += 1; state.combo += 1; state.score += comboScore(55, state.combo); play('collect'); setLine(state.ramen % 4 === 0 ? 'Order intact. The customer can smell victory.' : 'Still hot. Keep moving.'); }
+            } else if (entity.kind === 'ramen') { state.ramen += 1; state.combo += 1; state.score += comboScore(55, state.combo); play('collect'); if (state.ramen === 6) { state.flashTimer = 1.25; state.flashText = '6 RAMEN SECURED'; } setLine(state.ramen % 4 === 0 ? 'Order intact. The customer can smell victory.' : 'Still hot. Keep moving.'); }
             else if (entity.kind === 'spark') { state.sparks += 1; state.combo += 2; state.score += comboScore(140, state.combo); play('collect'); setLine('Stellar spark acquired. Combo multiplier engaged.'); }
             else { state.shield = 5.5; play('boost'); setLine('Route shield found. One rude collision can wait.'); }
             state.bestCombo = Math.max(state.bestCombo, state.combo); continue;
@@ -221,7 +266,14 @@ export default function RamenJetpackGame({ goalDistance = GOAL, onRunEnd, onClai
           if (entity.x + entity.width < PLAYER_X - 55) {
             if (isHazard(entity.kind) && !entity.passed) {
               const near = isNearMiss(state.y, entity.y, entity.height); state.combo += near ? 2 : 1;
-              if (near) { state.nearMisses += 1; state.score += comboScore(90, state.combo); play('collect'); setLine(`NEAR MISS +${comboScore(90, state.combo)}. The city blinked first.`); }
+              if (near) { state.nearMisses += 1; state.score += comboScore(90, state.combo); play('collect'); if (state.nearMisses === 3) { state.flashTimer = 1.25; state.flashText = '3 NEAR MISSES'; } setLine(`NEAR MISS +${comboScore(90, state.combo)}. The city blinked first.`); }
+              if (entity.bossShot && state.bossActive) {
+                state.bossHealth = Math.max(0, state.bossHealth - (near ? 34 : 25));
+                if (state.bossHealth <= 0) {
+                  state.bossActive = false; state.bossDefeated = true; state.score += 500; state.flashTimer = 2; state.flashText = 'NEKO SHOGUN DOWN'; state.distance = Math.max(state.distance, goalDistance * BOSS_CLEAR_PROGRESS); spawnRef.current.hazard = 1.2;
+                  setLine('Neko Shogun routed. Moon Shrine airspace is open. Finish the delivery!'); play('win');
+                } else setLine(`Counter-dodge landed. Shogun armor at ${Math.round(state.bossHealth)}%.`);
+              }
               state.bestCombo = Math.max(state.bestCombo, state.combo); if (!near && (state.combo === 4 || state.combo === 8)) setLine(state.combo === 8 ? 'Express means express. Try to keep up, city.' : 'Route is opening up. Keep the line clean.');
             }
             continue;
@@ -243,11 +295,15 @@ export default function RamenJetpackGame({ goalDistance = GOAL, onRunEnd, onClai
       context.fillStyle = 'rgba(7,8,29,.18)'; context.fillRect(0, 0, WIDTH, HEIGHT);
       context.strokeStyle = state.chrono > 0 ? 'rgba(255,218,100,.34)' : 'rgba(103,241,255,.24)'; context.lineWidth = 2;
       for (let index = 0; index < 14; index += 1) { const y = 46 + (index * 53) % 590; const speedLine = 75 + (index % 4) * 42; const x = (index * 163 + state.distance * (index % 3 + 1) * 3) % (WIDTH + 150) - 150; context.beginPath(); context.moveTo(x, y); context.lineTo(x + speedLine, y); context.stroke(); }
+      if (state.bossActive) drawNekoShogun(context, state.bossHealth, state.elapsed);
       for (const entity of entitiesRef.current) drawEntity(context, entity, artRef.current);
       context.globalAlpha = state.invulnerable > 0 && Math.floor(state.invulnerable * 12) % 2 === 0 ? .42 : 1;
       drawSuzume(context, state.y, thrustRef.current && phaseRef.current === 'running', state.shield, artRef.current.player); context.globalAlpha = 1;
       if (state.chrono > 0) { context.fillStyle = 'rgba(255,218,100,.08)'; context.fillRect(0, 0, WIDTH, HEIGHT); }
       if (getComboMultiplier(state.combo) >= 2) { context.strokeStyle = 'rgba(255,218,100,.35)'; context.lineWidth = 9; context.strokeRect(5, 5, WIDTH - 10, HEIGHT - 10); }
+      if (state.bossIntro > 0) drawComicFlash(context, 'WARNING: NEKO SHOGUN', 'DODGE PATROL VOLLEYS TO COUNTERATTACK', '#ff5e9e');
+      else if (state.checkpointTimer > 0) drawComicFlash(context, state.checkpointTitle, 'DISTRICT CHECKPOINT // KEEP THE BROTH LEVEL');
+      else if (state.flashTimer > 0) drawComicFlash(context, state.flashText, state.flashText.includes('SHOGUN') ? '+500 BOSS BONUS' : 'NIGHT SHIFT OBJECTIVE COMPLETE', '#5ae5e1');
       context.fillStyle = 'rgba(255,255,255,.035)'; context.fillRect(0, 0, WIDTH, HEIGHT);
       frame = requestAnimationFrame(render);
     };
@@ -258,32 +314,53 @@ export default function RamenJetpackGame({ goalDistance = GOAL, onRunEnd, onClai
   const delivered = lastRun?.outcome === 'delivered';
   const district = getRouteDistrict(hud.distance, goalDistance);
   const multiplier = getComboMultiplier(hud.combo);
+  const routeProgress = Math.min(1, hud.distance / goalDistance);
+  const objectives = getNightShiftObjectives({ ramen: hud.ramen, nearMisses: hud.nearMisses, integrity: hud.integrity, bossDefeated: hud.bossDefeated });
+  const liveObjectives = { ...objectives, integrity: phase === 'result' && objectives.integrity };
+  const completedObjectives = Object.values(liveObjectives).filter(Boolean).length;
   return <section className="jetpack-game" aria-label="Ramen Run jetpack delivery game">
-    <div className="jetpack-hud">
-      <div><small>{district.name.toUpperCase()} · {district.japanese}</small><b>{Math.min(100, Math.round(hud.distance / goalDistance * 100))}% <span>{district.intensity}</span></b></div>
-      <div className={multiplier >= 2 ? 'fever-score' : ''}><small>DELIVERY SCORE · x{multiplier}</small><b>{hud.score.toLocaleString()}</b></div>
-      <div><small>RAMEN SEALS</small><b>{hud.ramen} <span>· sparks {hud.sparks}</span></b></div>
-      <div className={hud.integrity === 1 ? 'critical-integrity' : ''}><small>BROTH INTEGRITY</small><b>{'♥'.repeat(hud.integrity)}<span>{'♡'.repeat(MAX_INTEGRITY - hud.integrity)}</span></b></div>
-      <div className={hud.shield > 0 ? 'active-shield' : ''}><small>AEGIS · NEAR {hud.nearMisses}</small><b>{hud.shield > 0 ? `${hud.shield.toFixed(1)}s` : 'standby'}</b></div>
+    <div className="jetpack-route-timeline" aria-label={`${Math.round(routeProgress * 100)} percent through Route 07`}>
+      <i style={{ width: `${routeProgress * 100}%` }} />
+      <span className="passed"><b>夜市</b> Neon Market</span><span className={routeProgress >= .34 ? 'passed' : ''}><b>渋谷</b> Skyrail</span><span className={`boss-stop ${hud.bossActive ? 'active' : hud.bossDefeated ? 'passed' : ''}`}><b>猫将軍</b> Neko Shogun</span><span className={routeProgress >= BOSS_CLEAR_PROGRESS ? 'passed' : ''}><b>月神社</b> Moon Shrine</span>
     </div>
-    <div className="jetpack-canvas-shell">
-      <canvas ref={canvasRef} width={WIDTH} height={HEIGHT} role="img" aria-label="Ramen Run jetpack delivery game. Hold Space, W, Arrow Up, mouse, or touch to rise. Release to descend. Press 1, 2, or 3 to use a purchased power-up. Press P or Escape to pause." onPointerDown={pointerStart} onPointerUp={() => setThrust(false)} onPointerLeave={() => setThrust(false)} />
-      {phase === 'briefing' && <div className="jetpack-overlay">
-        <img src="/assets/ramen-jetpack/ramen-run-logo.svg" alt="Ramen Run" />
-        <span className="jetpack-kicker">STELLAR EXPRESS // ROUTE 07</span><h2>Hot ramen. Cold vacuum.<br />Zero excuses.</h2>
-        <p>Hold to climb and release to dive through three escalating districts. You have three broth-integrity hearts; skim hazards for near-miss bonuses and build a x3 score fever.</p>
-        <div className="jetpack-loadout-preview">{jetpackPowerups.map(powerup => <span key={powerup.id}><i className={`powerup-art ${powerup.id}`} /><b>{powerup.key}</b> {powerup.name} <em>×{visiblePowerups[powerup.id]}</em></span>)}</div>
-        <button onClick={() => startRun()}><Play size={17} fill="currentColor" /> Launch delivery</button><small>Hold Space / W / ↑ / touch to rise · 1, 2, 3 use bought route tools · P or Esc pauses</small>
-      </div>}
-      {phase === 'paused' && <div className="jetpack-overlay compact"><Pause size={34} /><span className="jetpack-kicker">DELIVERY SUSPENDED</span><h2>Broth stabilizers engaged.</h2><p>Nothing moves until the courier says so.</p><button onClick={pause}><Play size={17} fill="currentColor" /> Resume route</button></div>}
-      {phase === 'result' && lastRun && <div className="jetpack-overlay result">
-        <span className="jetpack-kicker">{delivered ? 'DESTINATION LOCKED' : 'DELIVERY INTERRUPTED'}</span>{delivered ? <Trophy size={38} /> : <Zap size={38} />}<h2>{delivered ? 'Route recorded.' : 'The city gets another chance.'}</h2>
-        <p>{delivered ? `Balcony twelve received ${lastRun.ramen} ramen seals and ${lastRun.sparks} Stellar sparks.` : 'No shame, courier. Obstacles are famously rude. Reset and give the sky another chance.'}</p>
-        <div className="jetpack-result-grid"><span><b>{lastRun.score}</b> score</span><span><b>{lastRun.distance}m</b> flown</span><span><b>x{lastRun.bestCombo}</b> combo</span><span><b>{lastRun.nearMisses}</b> near misses</span></div>
-        {delivered && onClaimDeliveryReward && <div className="jetpack-claim"><ShieldCheck size={17} /><p>Completed delivery bounty: <b>0.35 XLM on Stellar Testnet.</b> This sends XLM from the configured treasury only after you explicitly claim it.</p>{reward.status === 'ready' ? <a href={`https://stellar.expert/explorer/testnet/tx/${reward.hash}`} target="_blank" rel="noreferrer">{reward.amount} sent · View transaction ↗</a> : <button className="claim-button" onClick={() => onClaimDeliveryReward(lastRun)} disabled={reward.status === 'loading'}>{reward.status === 'loading' ? 'Sending Testnet XLM…' : 'Claim delivery reward'}</button>}{reward.status === 'error' && <small className="claim-error">{reward.message}</small>}</div>}
-        <button className="retry-button" onClick={() => startRun()}><RotateCcw size={16} /> Retry delivery</button>
-      </div>}
-      <div className="jetpack-status"><span><Sparkles size={15} /> x{hud.combo} combo · best x{hud.bestCombo}</span><p>{line}</p><span><TimerReset size={15} /> {Math.round(hud.speed)} km/h</span></div>
+    <div className="jetpack-mission-layout">
+      <div className="jetpack-flight-column">
+        <div className="jetpack-hud">
+          <div><small>{district.name.toUpperCase()} · {district.japanese}</small><b>{Math.min(100, Math.round(routeProgress * 100))}% <span>{district.intensity}</span></b></div>
+          <div className={multiplier >= 2 ? 'fever-score' : ''}><small>DELIVERY SCORE · x{multiplier}</small><b>{hud.score.toLocaleString()}</b></div>
+          <div><small>RAMEN SEALS</small><b>{hud.ramen} <span>· sparks {hud.sparks}</span></b></div>
+          <div className={hud.integrity === 1 ? 'critical-integrity' : ''}><small>BROTH INTEGRITY</small><b>{'♥'.repeat(hud.integrity)}<span>{'♡'.repeat(MAX_INTEGRITY - hud.integrity)}</span></b></div>
+          <div className={hud.shield > 0 ? 'active-shield' : ''}><small>AEGIS · NEAR {hud.nearMisses}</small><b>{hud.shield > 0 ? `${hud.shield.toFixed(1)}s` : 'standby'}</b></div>
+        </div>
+        <div className={`jetpack-canvas-shell ${hud.bossActive ? 'boss-live' : ''}`}>
+          <canvas ref={canvasRef} width={WIDTH} height={HEIGHT} role="img" aria-label="Ramen Run jetpack delivery game. Hold Space, W, Arrow Up, mouse, or touch to rise. Release to descend. Press 1, 2, or 3 to use a purchased power-up. Press P or Escape to pause." onPointerDown={pointerStart} onPointerUp={() => setThrust(false)} onPointerLeave={() => setThrust(false)} />
+          {phase === 'briefing' && <div className="jetpack-overlay">
+            <img src="/assets/ramen-jetpack/ramen-run-logo.svg" alt="Ramen Run" />
+            <span className="jetpack-kicker">NIGHT SHIFT CONTRACT // ROUTE 07</span><h2>Hot ramen. Boss patrol.<br />Zero excuses.</h2>
+            <p>Cross three neon districts, complete skill objectives, then counter-dodge the Neko Shogun’s volleys to open the Moon Shrine route.</p>
+            <div className="jetpack-loadout-preview">{jetpackPowerups.map(powerup => <span key={powerup.id}><i className={`powerup-art ${powerup.id}`} /><b>{powerup.key}</b> {powerup.name} <em>×{visiblePowerups[powerup.id]}</em></span>)}</div>
+            <button onClick={() => startRun()}><Play size={17} fill="currentColor" /> Ignite jetpack</button><small>Free to launch · Hold Space / W / ↑ / touch · 1, 2, 3 use route tools · P or Esc pauses</small>
+          </div>}
+          {phase === 'paused' && <div className="jetpack-overlay compact"><Pause size={34} /><span className="jetpack-kicker">DELIVERY SUSPENDED</span><h2>Broth stabilizers engaged.</h2><p>Nothing moves until the courier says so.</p><button onClick={pause}><Play size={17} fill="currentColor" /> Resume route</button></div>}
+          {phase === 'result' && lastRun && <div className="jetpack-overlay result">
+            <div className={`jetpack-grade grade-${lastRun.grade.toLowerCase()}`}><small>ROUTE GRADE</small><b>{lastRun.grade}</b></div>
+            <span className="jetpack-kicker">{delivered ? 'DESTINATION LOCKED' : 'DELIVERY INTERRUPTED'}</span>{delivered ? <Trophy size={32} /> : <Zap size={32} />}<h2>{delivered ? 'Night shift cleared.' : 'The city gets another chance.'}</h2>
+            <p>{delivered ? `Balcony twelve received ${lastRun.ramen} ramen seals. ${lastRun.objectivesCompleted}/4 objectives cleared for +${objectiveCoinBonus(lastRun.objectivesCompleted, lastRun.bossDefeated)} local Broth Coins.` : 'No shame, courier. Your completed objectives still count toward the route grade.'}</p>
+            <div className="jetpack-result-grid"><span><b>{lastRun.score}</b> score</span><span><b>{lastRun.distance}m</b> flown</span><span><b>x{lastRun.bestCombo}</b> combo</span><span><b>{lastRun.nearMisses}</b> near misses</span></div>
+            {delivered && onClaimDeliveryReward && <div className="jetpack-claim"><ShieldCheck size={17} /><p>Optional completed-delivery bounty: <b>0.35 XLM on Stellar Testnet.</b> This is separate from local objective coins.</p>{reward.status === 'ready' ? <a href={`https://stellar.expert/explorer/testnet/tx/${reward.hash}`} target="_blank" rel="noreferrer">{reward.amount} sent · View transaction ↗</a> : <button className="claim-button" onClick={() => onClaimDeliveryReward(lastRun)} disabled={reward.status === 'loading'}>{reward.status === 'loading' ? 'Sending Testnet XLM…' : 'Claim delivery reward'}</button>}{reward.status === 'error' && <small className="claim-error">{reward.message}</small>}</div>}
+            <button className="retry-button" onClick={() => startRun()}><RotateCcw size={16} /> Retry delivery</button>
+          </div>}
+          <div className="jetpack-status"><span><Sparkles size={15} /> x{hud.combo} combo · best x{hud.bestCombo}</span><p>{line}</p><span><TimerReset size={15} /> {Math.round(hud.speed)} km/h</span></div>
+        </div>
+      </div>
+      <aside className="night-contract" aria-label="Night Shift Contract objectives">
+        <header><span>任務 · NIGHT SHIFT</span><h3>Route contract</h3><small>{completedObjectives}/4 objectives</small></header>
+        <Objective done={objectives.ramen} label="Seal the order" progress={`${Math.min(6, hud.ramen)}/6`} copy="Collect six ramen seals" />
+        <Objective done={objectives.nearMisses} label="Thread the needle" progress={`${Math.min(3, hud.nearMisses)}/3`} copy="Perform three near misses" />
+        <Objective done={liveObjectives.integrity} label="No soggy noodles" progress={phase === 'result' ? `${hud.integrity}/3` : 'AT FINISH'} copy="Finish with two hearts" pending={phase !== 'result'} />
+        <Objective done={objectives.boss} label="Open the Skyrail" progress={hud.bossActive ? `${Math.round(hud.bossHealth)}% HP` : hud.bossDefeated ? 'CLEAR' : '72%'} copy="Defeat Neko Shogun" boss={hud.bossActive} />
+        <div className="contract-bonus"><b>+{objectiveCoinBonus(completedObjectives, hud.bossDefeated)}</b><span>local Broth Coin bonus</span><small>No XLM purchase required</small></div>
+      </aside>
     </div>
     <div className="jetpack-controls">
       <div className="jetpack-power-controls">{jetpackPowerups.map(powerup => <button key={powerup.id} className={`${powerup.id} ${hud[powerup.id] > 0 ? 'active' : ''}`} disabled={phase !== 'running' || visiblePowerups[powerup.id] < 1} onClick={() => activatePowerup(powerup.id)}><i className={`powerup-art ${powerup.id}`} /><span><b>{powerup.key}</b> {powerup.name}</span><em>×{visiblePowerups[powerup.id]}</em></button>)}</div>
@@ -292,4 +369,8 @@ export default function RamenJetpackGame({ goalDistance = GOAL, onRunEnd, onClai
       <button className="sound-control" onClick={() => setSoundOn(value => !value)} aria-label={soundOn ? 'Mute game sounds' : 'Enable game sounds'}>{soundOn ? <Volume2 size={17} /> : <VolumeX size={17} />}</button>
     </div>
   </section>;
+}
+
+function Objective({ done, label, progress, copy, pending = false, boss = false }: { done: boolean; label: string; progress: string; copy: string; pending?: boolean; boss?: boolean }) {
+  return <article className={`contract-objective ${done ? 'done' : ''} ${boss ? 'boss' : ''}`}><i>{done ? '✓' : pending ? '•' : '○'}</i><div><b>{label}</b><span>{copy}</span></div><em>{progress}</em></article>;
 }
