@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { emptyJetpackPowerups, type JetpackPowerupInventory } from './jetpack/powerups';
+import type { RunGrade } from './jetpack/mechanics';
 
 export type GameProgress = {
   coins: number;
@@ -12,11 +13,12 @@ export type GameProgress = {
   nori: number;
   perfectRuns: number;
   bestCombo: number;
+  bestJetpackGrade: RunGrade;
   questReceipts: Record<string, { hash: string; amount: string; paid: boolean }>;
   jetpackPowerups: JetpackPowerupInventory;
 };
 
-export const defaultProgress: GameProgress = { coins: 220, highScore: 0, runs: 0, unlockedLevel: 1, completedLevels: [], acceptedQuests: [], completedQuests: [], nori: 0, perfectRuns: 0, bestCombo: 0, questReceipts: {}, jetpackPowerups: emptyJetpackPowerups };
+export const defaultProgress: GameProgress = { coins: 220, highScore: 0, runs: 0, unlockedLevel: 1, completedLevels: [], acceptedQuests: [], completedQuests: [], nori: 0, perfectRuns: 0, bestCombo: 0, bestJetpackGrade: 'C', questReceipts: {}, jetpackPowerups: emptyJetpackPowerups };
 const key = 'suzume-game-progress-v2';
 
 export const loadProgress = (): GameProgress => {
